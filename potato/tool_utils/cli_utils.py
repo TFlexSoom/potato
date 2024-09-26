@@ -26,7 +26,9 @@ project_hub = {
 }
 
 # get a speicific project from the hub
-def get_project_from_hub(name):
+def get_project_from_hub(args):
+    name = args.config_name
+
     if name not in project_hub:
         print("%s not found in the project_hub"%name)
         return
@@ -48,8 +50,12 @@ def get_project_from_hub(name):
     print("successfully fetched %s" % name)
 
 # show all the available projects in the hub
-def show_project_hub(type):
-    if type == 'all':
-        print("all the available example projects that you can directly fetch")
-        for key in project_hub:
-            print(key)
+def show_project_hub(args):
+    list_name = args.config_name
+
+    if list_name != "all":
+        raise RuntimeError("only 'all' is supported as an option")
+
+    print("all the available example projects that you can directly fetch")
+    for key in project_hub:
+        print(key)

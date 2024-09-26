@@ -4,7 +4,6 @@ Utility functions around parsing arguments.
 
 from argparse import ArgumentParser
 
-
 def arguments():
     """
     Creates and returns the arg parser for Potato on the command line.
