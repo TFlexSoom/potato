@@ -7,43 +7,40 @@ desc: Defines a module in the context of the flask server. This allows
    This way there is a separation of responsibility
 """
 
+from typing import Any
 from collections.abc import Callable
 from dataclasses import dataclass
 from server_utils.cache import singleton
-from server_utils.config import Config
+from server_utils.config import pull_values
 
 @dataclass
-class Service:
-    prestart: Callable[[], None]
-    configure: function[[Config], None]
+class Module:
+    configuration: Any
     start: Callable[[], None]
     cleanup: Callable[[], None]
 
 @singleton
-def get_services():
+def get_modules():
     return {}
 
-def register_module(name, service: Service):
-    get_services()[name] = service
+def register_module(name, service: Module):
+    get_modules()[name] = service
 
-def module_getter(func: Callable[[], Service], name=f"SERVICE_{len(get_services())}"):
+def module_getter(func: Callable[[], Module], name=f"SERVICE_{len(get_modules())}"):
     register_module(name, func())
 
-def __roll_through(binded_func: Callable[[Service], None], process: str):
+def __roll_through(binded_func: Callable[[Module], None], process: str):
     last_service_name = ''
     try:
-      for name, service in get_services().items():
+      for name, service in get_modules().items():
          last_service_name = name
          binded_func(service)
     except Exception as e:
       print(f"Exception raised during {process} within service {last_service_name}\n{e}")
       quit(1)
 
-def prestart():
-    __roll_through(lambda service: service.prestart(), "prestart")
-
-def configure(config: Config):
-    __roll_through(lambda service: service.configure(config), "configure")
+def configure():
+    __roll_through(lambda service: pull_values(service.configuration), "configure")
 
 def start():
     __roll_through(lambda service: service.start(), "start")

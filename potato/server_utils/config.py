@@ -2,19 +2,10 @@
 Config module.
 """
 
-import yaml
-import os
-
 from typing import Any
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from server_utils.cache import singleton
-
-@dataclass
-class ConfigListItem:
-    item_name: str
-    item_type: type
-    item_default: Any
 
 @dataclass
 class __Config:
@@ -41,13 +32,21 @@ def __create_type_assertion(type: type):
     
     return __type_assertion
 
-def add_config(definition: list[ConfigListItem]):
-    for definition_item in definition:
-        assertion = __create_type_assertion(definition_item.item_type)
-        assertion(definition_item.item_default)
-        __get_config().global_config[definition_item.name] = definition_item.item_default
-        __get_config().global_config[definition_item.name] = assertion
+def config(cls):
+    for field in fields(cls):
+        if field in __get_config().global_config:
+            # could be worth logging
+            continue
 
+        assertion = __create_type_assertion(field.type)
+        assertion(field.default)
+        __get_config().global_config[field.name] = field.default
+        __get_config().global_config[field.name] = assertion
+
+def pull_values(obj):
+    for field in fields(obj):
+        setattr(obj, field.name, __get_config().global_config[field.name])
+        
 def from_cli_args(args):
     for key, value in vars(args):
         if key not in __get_config().global_config.keys():
