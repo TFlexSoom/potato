@@ -1,3 +1,5 @@
+
+
 def load_all_data(config):
     global instance_id_to_data
     global task_assignment

@@ -15,7 +15,7 @@ path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
 
 from potato.server_utils.config import config
-from potato.server_utils.schemas import (
+from potato.flask_app.modules.front_end.schemas import (
     generate_multiselect_layout,
     generate_multirate_layout,
     generate_radio_layout,

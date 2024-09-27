@@ -1,6 +1,25 @@
 import re
 from collections import defaultdict
 
+def start():
+    #load user configuration settings and add authorized users
+    user_config_data = get_config().user_config_file
+    if 'allow_all_users' in user_config_data:
+        user_config.allow_all_users = user_config_data['allow_all_users']
+
+        if 'authorized_users' in user_config_data:
+            for user in user_config_data["authorized_users"]:
+                user_config.authorized_users.append(user)
+    
+    # load users with annotations to user_to_annotation_state
+    users_with_annotations = [
+        f
+        for f in os.listdir(config["output_annotation_dir"])
+        if os.path.isdir(os.path.join(config["output_annotation_dir"],f)) and f != 'archived_users'
+    ]
+    for user in users_with_annotations:
+        load_user_state(user)
+
 class UserAnnotationState:
     """
     A class for maintaining state on which annotations users have completed.
@@ -604,3 +623,4 @@ def previous_response(user, file_path):
     with open(file_path, "w") as f:
         for line in responses:
             f.write(line)
+

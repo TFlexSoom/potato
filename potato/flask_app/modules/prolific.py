@@ -1,4 +1,96 @@
 """
+filename: prolific.py
+date: 09/26/2024
+author: Tristan Hilbert (aka TFlexSoom)
+desc: Defines Prolific Service for Potato
+"""
+
+from dataclasses import dataclass
+import logging
+from requests import request
+import yaml
+import os
+from server_utils.cache import singleton
+from server_utils.config import config
+from server_utils.module import Module, module_getter
+
+@singleton
+def logger():
+    return logging.getLogger("Prolific Logger")
+
+@module_getter
+def __get_module():
+    return Module(
+        configuration=__get_configuration(),
+        start=start_prolific,
+        cleanup=lambda: None
+    )
+
+@config
+@dataclass
+class ProlificConfiguration:
+    use_prolific: bool = False
+    prolific_config_file_path = ""
+    output_annotation_dir: str = os.getcwd()
+    debug: bool = False
+    verbose: bool = False
+
+@singleton
+def __get_configuration():
+    return ProlificConfiguration()
+
+def start_prolific():
+    #load prolific configurations
+    if not __get_configuration().use_prolific:
+        return
+    
+    config_file_path = __get_configuration().prolific_config_file_path
+    if not config_file_path is None and config_file_path != "":
+        raise RuntimeError(f"{config_file_path} does not exist. Please configure `prolific_config_file_path` to use prolific")
+    
+    # load multitask annotation config
+    with open(config_file_path, "rt") as f:
+        prolific_config = yaml.safe_load(f)
+        max_concurrent_sessions = prolific_config.get('max_concurrent_sessions') if prolific_config.get('max_concurrent_sessions') else 30
+        workload_checker_period = prolific_config.get('workload_checker_period') if prolific_config.get('workload_checker_period') else 300
+        prolific_study = ProlificStudy(prolific_config['token'], prolific_config['study_id'],
+                                        saving_dir = __get_configuration().output_annotation_dir,
+                                        max_concurrent_sessions=max_concurrent_sessions,
+                                        workload_checker_period=workload_checker_period)
+        
+    study_basic_info = prolific_study.get_basic_study_info()
+    print('Prolific configurations successfully loaded for study: %s'%study_basic_info['internal_name'])
+    for k,v in study_basic_info.items():
+        print("%s: %s"%(k, v))
+
+    #update the submission status
+    #prolific_study.update_submission_status()
+    #users_to_drop = prolific_study.get_dropped_users()
+    #remove_instances_from_users(users_to_drop)
+
+def is_using_prolific():
+    return __get_configuration().use_prolific
+
+def login_prolific():
+    if not is_using_prolific():
+        return
+    
+    url_arguments = ['PROLIFIC_PID']
+    username = '&'.join([request.args.get(it) for it in url_arguments])
+    print("prolific logging in with %s=%s" % ('&'.join(url_arguments),username))
+
+    # check if the provided study id is the same as the study id defined in prolific configuration file, if not,
+    # pause the studies and terminate the program
+    if request.args.get('STUDY_ID') != prolific_study.study_id:
+        print('ERROR: Study id (%s) does not match the study id in %s (%s), trying to pause the prolific study, \
+                please check if study id is defined correctly on the server or if the study link if provided correctly \
+                on prolific'%(request.args.get('STUDY_ID'),
+                config['prolific']['config_file_path'], prolific_study.study_id))
+        prolific_study.pause_study(study_id=request.args.get('STUDY_ID'))
+        prolific_study.pause_study(study_id=prolific_study.study_id)
+        quit(1)
+
+"""
 Utility functions for handling prolific apis
 
 """
@@ -230,3 +322,29 @@ class ProlificStudy(ProlificBase):
         status = self.get_submission_from_id(user['SESSION_ID'])['status']
         self.sessions[user['SESSION_ID']] = {'username':user['PROLIFIC_PID'], 'status':status}
         self.session_status_dict[status].append(user['SESSION_ID'])
+
+def update_prolific_study_status():
+    """
+    Update the prolific study status
+    This is the regular status update of prolific study object
+    """
+
+    global prolific_study
+    global user_to_annotation_state
+
+    print('update_prolific_study is called')
+    prolific_study.update_submission_status()
+    users_to_drop = prolific_study.get_dropped_users()
+    users_to_drop = [it for it in users_to_drop if it in user_to_annotation_state] # only drop the users who are currently in the data
+    remove_instances_from_users(users_to_drop)
+
+    #automatically check if there are too many users working on the task and if so, pause it
+    #
+    if prolific_study.get_concurrent_sessions_count() > prolific_study.max_concurrent_sessions:
+        print('Concurrent sessions (%s) exceed the predefined threshold (%s), trying to pause the prolific study'%
+              (prolific_study.get_concurrent_sessions_count(), prolific_study.max_concurrent_sessions))
+        prolific_study.pause_study()
+
+        #use a separate thread to periodically check if the amount of active users are below a threshold
+        th = threading.Thread(target=prolific_study.workload_checker)
+        th.start()

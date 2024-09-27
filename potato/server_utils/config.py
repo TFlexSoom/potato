@@ -12,16 +12,6 @@ class __Config:
     global_config: dict[str, Any] = {}
     assertion: dict[str, Callable] = {}
 
-    # config_list: ConfigListItem
-    # verbose: bool = False
-    # very_verbose: bool = False
-    # debug: bool = False
-    # prolific: dict = {}
-    # login: dict = { "type": "" }
-    # user_config_file: str = "user_config.json"
-    # project_config_file: str = ""
-    # output_annotation_dir: str = ""
-
 @singleton
 def __get_config():
     return __Config()
