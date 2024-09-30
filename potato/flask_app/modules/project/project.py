@@ -1,4 +1,75 @@
+def start():
+        config = get_config()
+    project_dir = os.getcwd() #get the current working dir as the default project_dir
+    config_file = None
+    # if the .yaml config file is given, directly use it
+    if args.config_file[-5:] == '.yaml':
+        if os.path.exists(args.config_file):
+            print("INFO: when you run the server directly from a .yaml file, please make sure your config file is put in the annotation project folder")
+            config_file = args.config_file
+            path_sep = os.path.sep
+            split_path = os.path.abspath(config_file).split(path_sep)
+            if split_path[-2] == "configs":
+                project_dir = path_sep.join(split_path[:-2])
+            else:
+                project_dir = path_sep.join(split_path[:-1])
+            print("project folder set as %s"%project_dir)
+        else:
+            print("%s not found, please make sure the .yaml config file is setup correctly" % args.config_file)
+            quit()
+            
+    # if the user gives a directory, check if config.yaml or configs/config.yaml exists
+    elif os.path.isdir(args.config_file):
+        project_dir = args.config_file if os.path.isabs(args.config_file) else os.path.join(project_dir, args.config_file)
+        config_folder = os.path.join(args.config_file, 'configs')
+        if not os.path.isdir(config_folder):
+            print(".yaml file must be put in the configs/ folder under the main project directory when you try to start the project with the project directory, otherwise please directly give the path of the .yaml file")
+            quit()
 
+        #get all the config files
+        yamlfiles = [it for it in os.listdir(config_folder) if it[-5:] == '.yaml']
+
+        # if no yaml files found, quit the program
+        if len(yamlfiles) == 0:
+            print("configuration file not found under %s, please make sure .yaml file exists in the given directory, or please directly give the path of the .yaml file" % config_folder)
+            quit()
+        # if only one yaml file found, directly use it
+        elif len(yamlfiles) == 1:
+            config_file = os.path.join(config_folder, yamlfiles[0])
+
+        # if multiple yaml files found, ask the user to choose which one to use
+        else:
+            while True:
+                print("multiple config files found, please select the one you want to use (number 0-%d)"%len(yamlfiles))
+                for i,it in enumerate(yamlfiles):
+                    print("[%d] %s"%(i, it))
+                input_id = input("number: ")
+                try:
+                    config_file = os.path.join(config_folder, yamlfiles[int(input_id)])
+                    break
+                except Exception:
+                    print("wrong input, please reselect")
+
+    if not config_file:
+        print("configuration file not found under %s, please make sure .yaml file exists in the given directory, or please directly give the path of the .yaml file" % config_folder)
+        quit()
+
+    print("starting server from %s" % config_file)
+    with open(config_file, "r") as file_p:
+        config.update(yaml.safe_load(file_p))
+
+    config.update(
+        {
+            "verbose": args.verbose,
+            "very_verbose": args.very_verbose,
+            "__debug__": args.debug,
+            "__config_file__": args.config_file,
+        }
+    )
+
+    # update the current working dir for the server
+    os.chdir(project_dir)
+    print("the current working directory is: %s"%project_dir)
 
 def load_all_data(config):
     global instance_id_to_data
@@ -169,3 +240,53 @@ def load_all_data(config):
                     if "labels_per_instance" in config["automatic_assignment"]
                     else DEFAULT_LABELS_PER_INSTANCE
                 )
+
+def get_displayed_text(text):
+    # automatically unfold the text list when input text is a list (e.g. best-worst-scaling).
+    if "list_as_text" in config and config["list_as_text"]:
+        if isinstance(text, str):
+            try:
+                text = eval(text)
+            except Exception:
+                text = str(text)
+        if isinstance(text, list):
+            if config["list_as_text"]["text_list_prefix_type"] == "alphabet":
+                prefix_list = list(string.ascii_uppercase)
+                text = [prefix_list[i] + ". " + text[i] for i in range(len(text))]
+            elif config["list_as_text"]["text_list_prefix_type"] == "number":
+                text = [str(i) + ". " + text[i] for i in range(len(text))]
+            text = "<br>".join(text)
+
+        # unfolding dict into different sections
+        elif isinstance(text, dict):
+            #randomize the order of the displayed text
+            if "randomization" in config["list_as_text"]:
+                if config["list_as_text"].get("randomization") == "value":
+                    values = list(text.values())
+                    random.shuffle(values)
+                    text = {key: value for key, value in zip(text.keys(), values)}
+                elif config["list_as_text"].get("randomization") == "key":
+                    keys = list(text.keys())
+                    random.shuffle(keys)
+                    text = {key: text[key] for key in keys}
+                else:
+                    print("WARNING: %s currently not supported for list_as_text, please check your .yaml file"%config["list_as_text"].get("randomization"))
+
+            block = []
+            if config["list_as_text"].get("horizontal"):
+                for key in text:
+                    block.append(
+                        '<div name="instance_text" style="float:left;width:%s;padding:5px;" class="column"> <legend> %s </legend> %s </div>'
+                        % ("%d" % int(100 / len(text)) + "%", key, text[key])
+                    )
+                text = '<div class="row" style="display: table"> %s </div>' % ("".join(block))
+            else:
+                for key in text:
+                    block.append(
+                        '<div name="instance_text"> <legend> %s </legend> %s <br/> </div>'
+                        % (key, text[key])
+                    )
+                text = "".join(block)
+        else:
+            text = text
+    return text

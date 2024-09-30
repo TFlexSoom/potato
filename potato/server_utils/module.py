@@ -7,15 +7,13 @@ desc: Defines a module in the context of the flask server. This allows
    This way there is a separation of responsibility
 """
 
-from typing import Any
 from collections.abc import Callable
 from dataclasses import dataclass
 from server_utils.cache import singleton
-from server_utils.config import pull_values
 
 @dataclass
 class Module:
-    configuration: Any
+    configure: object
     start: Callable[[], None]
     cleanup: Callable[[], None]
 
@@ -40,7 +38,7 @@ def __roll_through(binded_func: Callable[[Module], None], process: str):
       quit(1)
 
 def configure():
-    __roll_through(lambda service: pull_values(service.configuration), "configure")
+    __roll_through(lambda service: service.configure(), "configure")
 
 def start():
     __roll_through(lambda service: service.start(), "start")

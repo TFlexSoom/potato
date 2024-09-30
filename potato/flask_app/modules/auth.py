@@ -7,6 +7,8 @@ desc: Defines Auth Service for Potato Application
 
 from dataclasses import dataclass
 import logging
+import os
+import json
 
 from server_utils.cache import singleton
 from server_utils.config import config
@@ -31,6 +33,7 @@ class AuthConfiguration:
     url_direct: bool = False
     login_type: str = ""
     verbose: bool = False
+    use_database: bool = False
 
 @singleton
 def __get_configuration():
@@ -104,8 +107,7 @@ def add_user(form: LoginForm) -> str:
     
     return result
 
-import os
-import json
+
 
 class UserConfig:
     """

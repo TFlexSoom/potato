@@ -8,6 +8,8 @@ desc: Defines Verbosity and Root Settings for Flask App
 from dataclasses import dataclass
 import logging
 from typing import Any
+from potato.flask_app.modules.database.database import db_persistance_layer
+from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
 from potato.server_utils.cache import singleton
 from potato.server_utils.config import config
 from potato.server_utils.module import Module, module_getter
@@ -19,6 +21,8 @@ class FlaskConfig:
     silent: bool = False
     verbose: bool = False
     very_verbose: bool = False
+    use_database: bool = False
+    use_filesystem: bool = False
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name == "port":
@@ -56,3 +60,14 @@ def get_port():
 
 def is_very_verbose():
     return __get_configuration().very_verbose
+
+# At my last company something like this was available, but we
+#   ended up putting it in its own module. Good here for now.
+def get_persistance_layer():
+    if __get_configuration().use_database:
+        return db_persistance_layer()
+    
+    if __get_configuration.use_filesystem:
+        return fs_persistance_layer()
+    
+    raise RuntimeError("No Persistance Layer!!!")
