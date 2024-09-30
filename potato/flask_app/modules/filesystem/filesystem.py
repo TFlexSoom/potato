@@ -7,7 +7,7 @@ desc: Filesystem Module for keeping the legacy behavior of potato
 
 from dataclasses import dataclass
 import logging
-from json import dump as json_dump, load as json_load
+from json import dump as json_dump, load as json_load, loads as json_loads
 from typing import Callable
 from csv import reader, writer
 from yaml import load as yaml_load
@@ -29,8 +29,7 @@ def logger():
 def __get_module():
     return Module(
         configuration=__get_configuration(),
-        start=start,
-        cleanup=lambda: None
+        persistance=start,
     )
 
 @config
@@ -81,6 +80,21 @@ def query_object(
         except Exception as e:
             logger().error(f"exception saving object {e}")
             
+    return None
+
+def query_object_rows(
+    filename: Filename,
+    sql: SQLString,
+    json_transformer: Callable[[JsonResult], Result],
+    sql_transformer: Callable[[SQLResult], Result],
+) -> Result:
+    with open(filename, "rt") as fp:
+        try:
+            values = [json_loads(line.strip) for line in fp.readlines()]
+            return json_transformer(values)
+        except Exception as e:
+            logger().error(f"exception saving object {e}")
+    
     return None
 
 def query_rows(

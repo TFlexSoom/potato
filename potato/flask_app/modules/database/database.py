@@ -22,8 +22,7 @@ def logger():
 def __get_module():
     return Module(
         configuration=__get_configuration(),
-        start=start,
-        cleanup=lambda: None
+        persistance=start,
     )
 
 @config

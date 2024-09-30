@@ -14,8 +14,9 @@ from server_utils.cache import singleton
 @dataclass
 class Module:
     configure: object
-    start: Callable[[], None]
-    cleanup: Callable[[], None]
+    persistance: Callable[[], None] = lambda: None
+    start: Callable[[], None] = lambda: None
+    cleanup: Callable[[], None] = lambda: None
 
 @singleton
 def get_modules():
