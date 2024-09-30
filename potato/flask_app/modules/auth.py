@@ -8,7 +8,6 @@ desc: Defines Auth Service for Potato Application
 from dataclasses import dataclass
 import logging
 import os
-import json
 from typing import NewType
 
 from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
