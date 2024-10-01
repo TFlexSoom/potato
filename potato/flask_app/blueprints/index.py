@@ -7,8 +7,8 @@ desc: Defined routes for the base page upon visiting the domain
 
 import logging
 from flask import Blueprint, render_template, request
-from potato.flask_app.modules.auth.auth import is_logged_in
-from flask_app.modules.prolific import is_using_prolific, login_prolific
+from potato.flask_app.modules.auth.module import is_logged_in
+from potato.flask_app.modules.prolific.module import is_using_prolific, login_prolific
 from flask_app.blueprints.annotate import annotate_home
 from potato.server_utils.cache_utils import singleton
 from server_utils.flask_utils import route

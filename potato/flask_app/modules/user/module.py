@@ -1,5 +1,36 @@
+"""
+module: user
+filename: module.py
+date: 09/26/2024
+author: David Jurgens and Jiaxin Pei (aka Pedro Pei)
+desc: Defines the data associated with users that goes beyon
+  just logging on. This includes demographic information, answered 
+  questions, and favorites
+"""
+
+import logging
+import os
+import os.path
+import json
 import re
 from collections import defaultdict
+
+from potato.flask_app.modules.project.task import assign_instances_to_user
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
+
+_logger = logging.getLogger("UserLogger")
+
+@module_getter
+def __get_module():
+    return Module(
+        configuration=UserConfiguration,
+    )
+
+@config
+class UserConfiguration:
+    debug: bool = False
+
 
 def start():
     #load user configuration settings and add authorized users
@@ -406,7 +437,7 @@ def lookup_user_state(username):
     global user_to_annotation_state
 
     if username not in user_to_annotation_state:
-        logger.debug('Previously unknown user "%s"; creating new annotation state' % (username))
+        _logger.debug('Previously unknown user "%s"; creating new annotation state' % (username))
 
         if "automatic_assignment" in config and config["automatic_assignment"]["on"]:
             # when pre_annotation is set up, only assign the instance when consent question is answered
@@ -450,7 +481,7 @@ def save_user_state(username, save_order=False):
 
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
-        logger.debug('Created state directory for user "%s"' % (username))
+        _logger.debug('Created state directory for user "%s"' % (username))
 
     annotation_order_fname = os.path.join(user_dir, "annotation_order.txt")
     if not os.path.exists(annotation_order_fname) or save_order:
@@ -515,7 +546,7 @@ def load_user_state(username):
 
     # User has annotated before or has assigned_data
     if os.path.exists(user_dir):
-        logger.debug('Found known user "%s"; loading annotation state' % (username))
+        _logger.debug('Found known user "%s"; loading annotation state' % (username))
 
         # if automatic assignment is on, load assigned user data
         if "automatic_assignment" in config and config["automatic_assignment"]["on"]:
@@ -534,7 +565,7 @@ def load_user_state(username):
                 for line in f:
                     instance_id = line[:-1]
                     if instance_id not in assigned_user_data:
-                        logger.warning(
+                        _logger.warning(
                             (
                                 "Annotation state for %s does not match "
                                 + "instances in existing dataset at %s"
@@ -553,7 +584,7 @@ def load_user_state(username):
                     annotated_instance = json.loads(line)
                     instance_id = annotated_instance["id"]
                     if instance_id not in assigned_user_data:
-                        logger.warning(
+                        _logger.warning(
                             (
                                 "Annotation state for %s does not match "
                                 + "instances in existing dataset at %s"
@@ -575,7 +606,7 @@ def load_user_state(username):
         # Make sure we keep track of the user throughout the program
         user_to_annotation_state[username] = user_state
 
-        logger.info(
+        _logger.info(
             'Loaded %d annotations for known user "%s"'
             % (user_state.get_real_finished_instance_count(), username)
         )
@@ -585,7 +616,7 @@ def load_user_state(username):
     # New user, so initialize state
     else:
 
-        logger.debug('Previously unknown user "%s"; creating new annotation state' % (username))
+        _logger.debug('Previously unknown user "%s"; creating new annotation state' % (username))
 
         # whenever a user creation happens, update the prolific study first so that we can potentially release some spots
         if config.get('prolific'):

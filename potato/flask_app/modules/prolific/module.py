@@ -1,33 +1,34 @@
 """
-filename: prolific.py
+module: prolific
+filename: module.py
 date: 09/26/2024
-author: Tristan Hilbert (aka TFlexSoom)
+author: David Jurgens
 desc: Defines Prolific Service for Potato
 """
 
-from dataclasses import dataclass
 import logging
 from requests import request
 import yaml
 import os
-from potato.server_utils.cache_utils import singleton
+import os.path
+import pandas as pd
+import requests
+from collections import OrderedDict, defaultdict
+import time
+import json
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 
-@singleton
-def logger():
-    return logging.getLogger("Prolific Logger")
+_logger = logging.getLogger("Prolific Logger")
 
 @module_getter
 def __get_module():
     return Module(
-        configuration=__get_configuration(),
+        configuration=ProlificConfiguration,
         start=start_prolific,
-        cleanup=lambda: None
     )
 
 @config
-@dataclass
 class ProlificConfiguration:
     use_prolific: bool = False
     prolific_config_file_path = ""
@@ -35,16 +36,12 @@ class ProlificConfiguration:
     debug: bool = False
     verbose: bool = False
 
-@singleton
-def __get_configuration():
-    return ProlificConfiguration()
-
 def start_prolific():
     #load prolific configurations
-    if not __get_configuration().use_prolific:
+    if not ProlificConfiguration.use_prolific:
         return
     
-    config_file_path = __get_configuration().prolific_config_file_path
+    config_file_path = ProlificConfiguration.prolific_config_file_path
     if not config_file_path is None and config_file_path != "":
         raise RuntimeError(f"{config_file_path} does not exist. Please configure `prolific_config_file_path` to use prolific")
     
@@ -54,14 +51,14 @@ def start_prolific():
         max_concurrent_sessions = prolific_config.get('max_concurrent_sessions') if prolific_config.get('max_concurrent_sessions') else 30
         workload_checker_period = prolific_config.get('workload_checker_period') if prolific_config.get('workload_checker_period') else 300
         prolific_study = ProlificStudy(prolific_config['token'], prolific_config['study_id'],
-                                        saving_dir = __get_configuration().output_annotation_dir,
+                                        saving_dir = ProlificConfiguration.output_annotation_dir,
                                         max_concurrent_sessions=max_concurrent_sessions,
                                         workload_checker_period=workload_checker_period)
         
     study_basic_info = prolific_study.get_basic_study_info()
-    print('Prolific configurations successfully loaded for study: %s'%study_basic_info['internal_name'])
+    _logger.debug('Prolific configurations successfully loaded for study: %s'%study_basic_info['internal_name'])
     for k,v in study_basic_info.items():
-        print("%s: %s"%(k, v))
+        _logger.debug("%s: %s"%(k, v))
 
     #update the submission status
     #prolific_study.update_submission_status()
@@ -69,7 +66,7 @@ def start_prolific():
     #remove_instances_from_users(users_to_drop)
 
 def is_using_prolific():
-    return __get_configuration().use_prolific
+    return ProlificConfiguration.use_prolific
 
 def login_prolific():
     if not is_using_prolific():
@@ -77,12 +74,12 @@ def login_prolific():
     
     url_arguments = ['PROLIFIC_PID']
     username = '&'.join([request.args.get(it) for it in url_arguments])
-    print("prolific logging in with %s=%s" % ('&'.join(url_arguments),username))
+    _logger.debug("prolific logging in with %s=%s" % ('&'.join(url_arguments),username))
 
     # check if the provided study id is the same as the study id defined in prolific configuration file, if not,
     # pause the studies and terminate the program
     if request.args.get('STUDY_ID') != prolific_study.study_id:
-        print('ERROR: Study id (%s) does not match the study id in %s (%s), trying to pause the prolific study, \
+        _logger.debug('ERROR: Study id (%s) does not match the study id in %s (%s), trying to pause the prolific study, \
                 please check if study id is defined correctly on the server or if the study link if provided correctly \
                 on prolific'%(request.args.get('STUDY_ID'),
                 config['prolific']['config_file_path'], prolific_study.study_id))
@@ -90,16 +87,6 @@ def login_prolific():
         prolific_study.pause_study(study_id=prolific_study.study_id)
         quit(1)
 
-"""
-Utility functions for handling prolific apis
-
-"""
-import os.path
-import pandas as pd
-import requests
-from collections import OrderedDict, defaultdict
-import time
-import json
 
 # The base wrapper of prolific apis
 class ProlificBase(object):
@@ -115,11 +102,11 @@ class ProlificBase(object):
         if response.status_code == 200:
             data = response.json()  # If the response contains JSON data
             studies = pd.DataFrame.from_records(data['results'])
-            print('You currently have %s studies'%len(data['results']))
-            print(studies[['id','name','study_type','internal_name','status']].to_records())
+            _logger.debug('You currently have %s studies'%len(data['results']))
+            _logger.debug(studies[['id','name','study_type','internal_name','status']].to_records())
             return studies
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
 
     # get the information of a prolific study using the study id
@@ -132,7 +119,7 @@ class ProlificBase(object):
             data = response.json()  # If the response contains JSON data
             return data
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
 
     #get all submissions, might be super slow when you have a long list of submissions
@@ -141,10 +128,10 @@ class ProlificBase(object):
         response = requests.get(url, headers=self.headers)
         if response.status_code == 200:
             data = response.json()  # If the response contains JSON data
-            print('You currently have %s submissions'%len(data['results']))
+            _logger.debug('You currently have %s submissions'%len(data['results']))
             return data['results']
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
 
     # get the list of submissions from a study
@@ -156,13 +143,13 @@ class ProlificBase(object):
         response = requests.get(url, headers=self.headers)
         if response.status_code == 200:
             data = response.json()['results']
-            print('Successfully fetched %s submissions from study %s' % (len(data), study_id))
+            _logger.debug('Successfully fetched %s submissions from study %s' % (len(data), study_id))
             return data
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
-        #print(len(data))
-        #print(data.keys())
+        #_logger.debug(len(data))
+        #_logger.debug(data.keys())
 
 
     # get the status of a specific submission
@@ -173,7 +160,7 @@ class ProlificBase(object):
             data = response.json()  # If the response contains JSON data
             return data
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
 
     # get the list of recent submissions from a study
@@ -184,10 +171,10 @@ class ProlificBase(object):
         response = requests.get(url, headers=self.headers)
         if response.status_code == 200:
             data = response.json()  # If the response contains JSON data
-            print('You currently have %s submissions' % len(data['results']))
+            _logger.debug('You currently have %s submissions' % len(data['results']))
             return (data['results'])
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            _logger.debug(f"Error: {response.status_code} - {response.text}")
             return None
 
     #get study status
@@ -212,7 +199,7 @@ class ProlificBase(object):
         }
         response = requests.post(url, headers=self.headers, json=data)
         data = response.json()
-        print(study_id, self.get_study_status(study_id))
+        _logger.debug(study_id, self.get_study_status(study_id))
         return data
 
     #start study based on the given study id, if id not given, use the study id
@@ -227,7 +214,7 @@ class ProlificBase(object):
         }
         response = requests.post(url, headers=self.headers, json=data)
         data = response.json()
-        print(study_id, self.get_study_status(study_id))
+        _logger.debug(study_id, self.get_study_status(study_id))
         return data
 
 
@@ -279,27 +266,27 @@ class ProlificStudy(ProlificBase):
     # max_concurrent_sessions resume the study on prolific
     def workload_checker(self):
         if self.workload_checker_on:
-            print('Workload checker already in process, time remaining: %s seconds' % self.workload_checker_remaining_time)
+            _logger.debug('Workload checker already in process, time remaining: %s seconds' % self.workload_checker_remaining_time)
             return None
         else:
-            print('Workload checker started, checking every %s seconds'%self.checker_period)
+            _logger.debug('Workload checker started, checking every %s seconds'%self.checker_period)
             while True:
                 self.workload_checker_remaining_time = self.checker_period
                 self.workload_checker_on = True
-                print(f"\rChecking workload in: {self.checker_period} seconds")
+                _logger.debug(f"\rChecking workload in: {self.checker_period} seconds")
                 #time.sleep(self.checker_period)
                 for i in range(self.checker_period, 0, -1):
-                    #print(f"\rChecking workload in: {i}s", end='', flush=True)
+                    #_logger.debug(f"\rChecking workload in: {i}s", end='', flush=True)
                     self.workload_checker_remaining_time -= 1
                     time.sleep(1)
                 self.update_submission_status()
                 if self.get_concurrent_sessions_count() < 0.2 * self.max_concurrent_sessions:
                     self.workload_checker_on = False
-                    print('current workload: ', self.get_concurrent_sessions_count(), ', resuming study %s'%self.study_id)
+                    _logger.debug('current workload: ', self.get_concurrent_sessions_count(), ', resuming study %s'%self.study_id)
                     self.start_study()
                     return None
                 else:
-                    print('current workload: ', self.get_concurrent_sessions_count(), ', starting another workload checker')
+                    _logger.debug('current workload: ', self.get_concurrent_sessions_count(), ', starting another workload checker')
     '''
     
     def update_active_session_status(self):
@@ -332,7 +319,7 @@ def update_prolific_study_status():
     global prolific_study
     global user_to_annotation_state
 
-    print('update_prolific_study is called')
+    _logger.debug('update_prolific_study is called')
     prolific_study.update_submission_status()
     users_to_drop = prolific_study.get_dropped_users()
     users_to_drop = [it for it in users_to_drop if it in user_to_annotation_state] # only drop the users who are currently in the data
@@ -341,7 +328,7 @@ def update_prolific_study_status():
     #automatically check if there are too many users working on the task and if so, pause it
     #
     if prolific_study.get_concurrent_sessions_count() > prolific_study.max_concurrent_sessions:
-        print('Concurrent sessions (%s) exceed the predefined threshold (%s), trying to pause the prolific study'%
+        _logger.debug('Concurrent sessions (%s) exceed the predefined threshold (%s), trying to pause the prolific study'%
               (prolific_study.get_concurrent_sessions_count(), prolific_study.max_concurrent_sessions))
         prolific_study.pause_study()
 

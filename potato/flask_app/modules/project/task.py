@@ -1,3 +1,15 @@
+"""
+module: project
+filename: task.py
+date: 09/26/2024
+author: David Jurgens and Jiaxin Pei (aka Pedro)
+desc: Defines the assignment of tasks in a helper file for the
+  project module
+"""
+
+import logging
+
+_logger = logging.getLogger("Task")
 
 def assign_instances_to_user(username):
     """
@@ -74,7 +86,7 @@ def assign_instances_to_user(username):
 
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
-        logger.debug('Created state directory for user "%s"' % (username))
+        _logger.debug('Created state directory for user "%s"' % (username))
 
     with open(assigned_user_data_path, "w") as w:
         json.dump(user_state.get_assigned_data(), w)

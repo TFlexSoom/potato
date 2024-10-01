@@ -1,34 +1,54 @@
+"""
+module: annotation
+filename: module.py
+date: 09/26/2024
+author: David Jurgens and Jiaxin Pei (aka Pedro)
+desc: Defines annotations and the surrounded data created from user
+   responses
+"""
+
+from collections import defaultdict
+import logging
+from random import Random
+import re
+import simpledorff
+import pandas as pd
+
+from potato.flask_app.modules.annotation.color import get_color_for_schema_label
+from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
+from potato.flask_app.modules.prescreen.module import check_prestudy_status
+from potato.flask_app.modules.project.task import assign_instances_to_user
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.class_utils import get_class
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
+
+_logger = logging.getLogger("Annotation")
+_random = Random()
+_init_tag_regex = re.compile(r"(<span.+?>)")
+_end_tag_regex = re.compile(r"(</span>)")
+_anno_regex = re.compile(r'<div class="span_label".+?>(.+)</div>')
+_re_to_highlights = defaultdict(list)
+
+@module_getter
+def _get_module():
+    return Module(
+        configuration=AnnotationConfiguration,
+        start=start
+    )
+
+@config
+class AnnotationConfiguration:
+    debug: bool = False
+    output_annotation_dir: str = ""
+    output_annotation_format: str = ""
+    annotation_schemes: list[str] = ""
+
 def start():
-    # Generate the output directory if it doesn't exist yet
-    if not os.path.exists(config["output_annotation_dir"]):
-        os.makedirs(config["output_annotation_dir"])
-    
-    # TODO: load previous annotation state
-    # load_annotation_state(config)
-
-COLOR_PALETTE = [
-    "rgb(179,226,205)",
-    "rgb(253,205,172)",
-    "rgb(203,213,232)",
-    "rgb(244,202,228)",
-    "rgb(230,245,201)",
-    "rgb(255,242,174)",
-    "rgb(241,226,204)",
-    "rgb(204,204,204)",
-    "rgb(102, 197, 204)",
-    "rgb(246, 207, 113)",
-    "rgb(248, 156, 116)",
-    "rgb(220, 176, 242)",
-    "rgb(135, 197, 95)",
-    "rgb(158, 185, 243)",
-    "rgb(254, 136, 177)",
-    "rgb(201, 219, 116)",
-    "rgb(139, 224, 164)",
-    "rgb(180, 151, 231)",
-    "rgb(179, 179, 179)",
-]
-
-
+    if AnnotationConfiguration.debug:
+        _random.seed(0)
+    else:
+        _random.seed()
 
 def map_user_id_to_digit(user_id_str):
     # Convert the user_id_str to an integer using a hash function
@@ -40,13 +60,14 @@ def map_user_id_to_digit(user_id_str):
     return digit
 
 
-def randomize_options(soup, legend_names, seed):
+def randomize_options(soup, legend_names, seed: int):
+    random = Random()
     random.seed(seed)
 
     # Find all fieldsets in the soup
     fieldsets = soup.find_all('fieldset')
     if not fieldsets:
-        print("No fieldsets found.")
+        _logger.debug("No fieldsets found.")
         return soup
 
     # Initialize a variable to track whether the legend is found
@@ -83,17 +104,6 @@ def randomize_options(soup, legend_names, seed):
     return soup
 
 
-def get_color_for_schema_label(schema, label):
-    global schema_label_to_color
-
-    t = (schema, label)
-    if t in schema_label_to_color:
-        return schema_label_to_color[t]
-    c = COLOR_PALETTE[len(schema_label_to_color)]
-    schema_label_to_color[t] = c
-    return c
-
-
 def parse_html_span_annotation(html_span_annotation):
     """
     Parses the span annotations produced in raw HTML by Potato's front end
@@ -103,26 +113,23 @@ def parse_html_span_annotation(html_span_annotation):
               and a list of annotations
     """
     s = html_span_annotation.strip()
-    init_tag_regex = re.compile(r"(<span.+?>)")
-    end_tag_regex = re.compile(r"(</span>)")
-    anno_regex = re.compile(r'<div class="span_label".+?>(.+)</div>')
     no_html_s = ""
     start = 0
 
     annotations = []
 
     while True:
-        m = init_tag_regex.search(s, start)
+        m = _init_tag_regex.search(s, start)
         if not m:
             break
 
         # find the end tag
-        m2 = end_tag_regex.search(s, m.end())
+        m2 = _end_tag_regex.search(s, m.end())
 
         middle = s[m.end() : m2.start()]
 
         # Get the annotation label from the middle text
-        m3 = anno_regex.search(middle)
+        m3 = _anno_regex.search(middle)
 
         middle_text = middle[: m3.start()]
         annotation = m3.group(1)
@@ -153,12 +160,12 @@ def post_process(config, text):
 
     all_words = list(set(re.findall(r"\b[a-z]{4,}\b", text)))
     all_words = [w for w in all_words if not w.startswith("http")]
-    random.shuffle(all_words)
+    _random.shuffle(all_words)
 
-    all_schemas = list([x[0] for x in re_to_highlights.values()])
+    all_schemas = list([x[0] for x in _re_to_highlights.values()])
 
     # Grab the highlights
-    for regex, labels in re_to_highlights.items():
+    for regex, labels in _re_to_highlights.items():
 
         search_from = 0
 
@@ -234,7 +241,7 @@ def post_process(config, text):
     # NOTE: we do this after the label assignment because if we somehow screw up
     # and wrongly flag a valid word, this coloring is embedded within the outer
     # (correct) <span> tag, so the word will get labeled correctly
-    num_false_labels = random.randint(0, 1)
+    num_false_labels = _random.randint(0, 1)
 
     for i in range(min(num_false_labels, len(all_words))):
 
@@ -242,7 +249,7 @@ def post_process(config, text):
         to_highlight = all_words[i]
 
         # Pick a random schema and label
-        schema, label = random.choice(all_schemas)
+        schema, label = _random.choice(all_schemas)
         schema_labels_to_highlight.add((schema, label))
 
         # Figure out where this word occurs
@@ -286,7 +293,7 @@ def get_total_annotations():
     return total
 
 
-def update_annotation_state(username, form):
+def update_annotation_state(username, form, instance_id: int):
     """
     Parses the state of the HTML form (what the user did to the instance) and
     updates the state of the instance's annotations accordingly.
@@ -296,7 +303,7 @@ def update_annotation_state(username, form):
     user_state = lookup_user_state(username)
 
     # Jiaxin: the instance_id are changed to the user's local instance cursor
-    instance_id = user_state.cursor_to_real_instance_id(int(request.form["instance_id"]))
+    instance_id = user_state.cursor_to_real_instance_id(instance_id)
 
     schema_to_label_to_value = defaultdict(dict)
 
@@ -355,7 +362,7 @@ def update_annotation_state(username, form):
 
         # when the user is working on prestudy, check the status
         if re.search("prestudy", instance_id):
-            print(check_prestudy_status(username))
+            _logger.debug(check_prestudy_status(username))
 
     return did_change
 
@@ -381,15 +388,15 @@ def save_all_annotations():
     global instance_id_to_data
 
     # Figure out where this user's data would be stored on disk
-    output_annotation_dir = config["output_annotation_dir"]
-    fmt = config["output_annotation_format"]
+    output_annotation_dir = AnnotationConfiguration.output_annotation_dir
+    fmt = AnnotationConfiguration.output_annotation_format
 
     if fmt not in ["csv", "tsv", "json", "jsonl"]:
         raise Exception("Unsupported output format: " + fmt)
 
     if not os.path.exists(output_annotation_dir):
         os.makedirs(output_annotation_dir)
-        logger.debug("Created state directory for annotations: %s" % (output_annotation_dir))
+        _logger.debug("Created state directory for annotations: %s" % (output_annotation_dir))
 
     annotated_instances_fname = os.path.join(output_annotation_dir, "annotated_instances." + fmt)
 
@@ -470,8 +477,154 @@ def save_all_annotations():
         sep = "," if fmt == "csv" else "\t"
         df.to_csv(annotated_instances_fname, index=False, sep=sep)
 
-    # Save the annotation assignment info if automatic task assignment is on.
-    # Jiaxin: we are simply saving this as a json file at this moment
-    if "automatic_assignment" in config and config["automatic_assignment"]["on"]:
-        # TODO: write the code here
-        print("saved")
+
+def convert_labels(annotation, schema_type):
+    if schema_type == "likert":
+        return int(list(annotation.keys())[0][6:])
+    if schema_type == "radio":
+        return list(annotation.keys())[0]
+    if schema_type == "multiselect":
+        return list(annotation.keys())
+    if schema_type == 'number':
+        return float(annotation['text_box'])
+    if schema_type == 'textbox':
+        return annotation['text_box']
+    print("Unrecognized schema_type %s" % schema_type)
+    return None
+
+
+def get_agreement_score(user_list, schema_name, return_type="overall_average"):
+    """
+    Get the final agreement score for selected users and schemas.
+    """
+    global user_to_annotation_state
+
+    if user_list == "all":
+        user_list = user_to_annotation_state.keys()
+
+    schemes = AnnotationConfiguration.annotation_schemes
+    name2alpha = {}
+    if schema_name == "all":
+        for i in range(len(schemes)):
+            schema = schemes[i]
+            alpha = cal_agreement(user_list, schema["name"])
+            name2alpha[schema["name"]] = alpha
+
+    alpha_list = []
+    if return_type == "overall_average":
+        for name in name2alpha:
+            alpha = name2alpha[name]
+            if isinstance(alpha, dict):
+                average_alpha = sum([it[1] for it in list(alpha.items())]) / len(alpha)
+                alpha_list.append(average_alpha)
+            elif isinstance(alpha, (np.floating, float)):
+                alpha_list.append(alpha)
+            else:
+                continue
+        if len(alpha_list) > 0:
+            return round(sum(alpha_list) / len(alpha_list), 2)
+        return "N/A"
+
+    return name2alpha
+
+
+def cal_agreement(user_list, schema_name, schema_type=None, selected_keys=None):
+    """
+    Calculate the krippendorff's alpha for selected users and schema.
+    """
+    global user_to_annotation_state
+
+    # get the schema_type/annotation_type from the config file
+    schemes = AnnotationConfiguration.annotation_schemes
+    for i in range(len(schemes)):
+        schema = schemes[i]
+        if schema["name"] == schema_name:
+            schema_type = schema["annotation_type"]
+            break
+
+    # obtain the list of keys for calculating IAA and the user annotations
+    union_keys = set()
+    user_annotation_list = []
+    for user in user_list:
+        if user not in user_to_annotation_state:
+            print("%s not found in user_to_annotation_state" % user)
+        user_annotated_ids = user_to_annotation_state[user].instance_id_to_labeling.keys()
+        union_keys = union_keys | user_annotated_ids
+        user_annotation_list.append(user_to_annotation_state[user].instance_id_to_labeling)
+
+    if len(user_annotation_list) < 2:
+        print("Cannot calculate agreement score for less than 2 users")
+        return None
+
+    # only calculate the agreement for selected keys when selected_keys is specified
+    if selected_keys is None:
+        selected_keys = list(union_keys)
+
+    if len(selected_keys) == 0:
+        print(
+            "Cannot calculate agreement score when annotators work on different sets of instances"
+        )
+        return None
+
+    if schema_type in ["radio", "likert"]:
+        distance_metric_dict = {"radio": nominal_metric, "likert": interval_metric}
+        # initialize agreement data matrix
+        l = []
+        for _ in range(len(user_annotation_list)):
+            l.append([np.nan] * len(selected_keys))
+
+        for i, _selected_key in enumerate(selected_keys):
+            for j in range(len(l)):
+                if _selected_key in user_annotation_list[j]:
+                    l[j][i] = convert_labels(
+                        user_annotation_list[j][_selected_key][schema_name], schema_type
+                    )
+        alpha = simpledorff.calculate_krippendorffs_alpha(pd.DataFrame(np.array(l)),metric_fn=distance_metric_dict[schema_type])
+
+        return alpha
+
+    # When multiple labels are annotated for each instance, calculate the IAA for each label
+    if schema_type == "multiselect":
+        # collect the label list from configuration file
+        if isinstance(schema["labels"][0], dict):
+            labels = [it["name"] for it in schema["labels"]]
+        elif isinstance(schema["labels"][0], str):
+            labels = schema["labels"]
+        else:
+            print("Unknown label type in schema['labels']")
+            return None
+
+        # initialize agreement data matrix for each label
+        l_dict = {}
+        for l in labels:
+            l_dict[l] = []
+            for i in range(len(user_annotation_list)):
+                l_dict[l].append([np.nan] * len(selected_keys))
+
+        # consider binary agreement for each label in the multi-label schema
+        for i, _selected_key in enumerate(selected_keys):
+            for j in range(len(user_annotation_list)):
+                if (_selected_key in user_annotation_list[j]) and (
+                    schema_name in user_annotation_list[j][_selected_key]
+                ):
+                    annotations = convert_labels(
+                        user_annotation_list[j][_selected_key][schema_name], schema_type
+                    )
+                    for l in labels:
+                        l_dict[l][j][i] = 1
+                        if l not in annotations:
+                            l_dict[l][j][i] = 0
+
+        alpha_dict = {}
+        for key in labels:
+            alpha_dict[key] = simpledorff.calculate_krippendorffs_alpha(pd.DataFrame(np.array(l_dict[key])),metric_fn=nominal_metric)
+        return alpha_dict
+
+
+def cal_amount(user):
+    count = 0
+    lines = user_dict[user]["user_data"]
+    for key in lines:
+        if lines[key]["annotated"]:
+            count += 1
+    return count

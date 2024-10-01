@@ -1,5 +1,53 @@
+"""
+module: project
+filename: module.py
+date: 09/26/2024
+author: David Jurgens and Jiaxin Pei (aka Pedro)
+desc: Defines the data orchestration metadata related to projects.
+  This module communicates with other modules like:
+    - annotation -> Handles the answers for the project
+    - prescreen -> Handles the prescreen questions to allow participation
+    - sampling -> Handles the randomization of the questions
+"""
+
+from collections import defaultdict
+import pandas as pd
+import logging
+from random import Random
+from typing import OrderedDict
+from string import ascii_uppercase
+
+from potato.flask_app.modules.annotation.module import convert_labels
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
+
+_logger = logging.getLogger("Project")
+_random = Random()
+_task_assignment = {} #TODO Persist
+_instance_id_to_data = {} #TODO Persist
+_re_to_highlights = {} #TODO Persist
+
+DEFAULT_LABELS_PER_INSTANCE = 3
+
+@module_getter
+def _get_module():
+    return Module(
+        configuration=ProjectConfiguration,
+        start=start
+    )
+
+@config
+class ProjectConfiguration:
+    debug: bool = False
+
 def start():
-        config = get_config()
+    if ProjectConfiguration.debug:
+        _random.seed(0)
+    else:
+        _random.seed()
+
+
+def start():
     project_dir = os.getcwd() #get the current working dir as the default project_dir
     config_file = None
     # if the .yaml config file is given, directly use it
@@ -58,35 +106,33 @@ def start():
     with open(config_file, "r") as file_p:
         config.update(yaml.safe_load(file_p))
 
-    config.update(
-        {
-            "verbose": args.verbose,
-            "very_verbose": args.very_verbose,
-            "__debug__": args.debug,
-            "__config_file__": args.config_file,
-        }
-    )
+    # config.update(
+    #     {
+    #         "verbose": args.verbose,
+    #         "very_verbose": args.very_verbose,
+    #         "__debug__": args.debug,
+    #         "__config_file__": args.config_file,
+    #     }
+    # )
 
     # update the current working dir for the server
     os.chdir(project_dir)
     print("the current working directory is: %s"%project_dir)
 
 def load_all_data(config):
-    global instance_id_to_data
-    global task_assignment
-
-    # Hacky nonsense
-    global re_to_highlights
+    global _task_assignment
+    global _instance_id_to_data
+    global _re_to_highlights
 
     # Where to look in the JSON item object for the text to annotate
     text_key = config["item_properties"]["text_key"]
     id_key = config["item_properties"]["id_key"]
 
     # Keep the data in the same order we read it in
-    instance_id_to_data = OrderedDict()
+    _instance_id_to_data = OrderedDict()
 
     data_files = config["data_files"]
-    logger.debug("Loading data from %d files" % (len(data_files)))
+    _logger.debug("Loading data from %d files" % (len(data_files)))
 
     for data_fname in data_files:
 
@@ -94,7 +140,7 @@ def load_all_data(config):
         if fmt not in ["csv", "tsv", "json", "jsonl"]:
             raise Exception("Unsupported input file format %s for %s" % (fmt, data_fname))
 
-        logger.debug("Reading data from " + data_fname)
+        _logger.debug("Reading data from " + data_fname)
 
         if fmt in ["json", "jsonl"]:
             with open(data_fname, "rt") as f:
@@ -107,7 +153,7 @@ def load_all_data(config):
                     instance_id = item[id_key]
 
                     # TODO: check for duplicate instance_id
-                    instance_id_to_data[instance_id] = item
+                    _instance_id_to_data[instance_id] = item
 
         else:
             sep = "," if fmt == "csv" else "\t"
@@ -122,10 +168,10 @@ def load_all_data(config):
                 instance_id = row[id_key]
 
                 # TODO: check for duplicate instance_id
-                instance_id_to_data[instance_id] = item
+                _instance_id_to_data[instance_id] = item
             line_no = len(df)
 
-        logger.debug("Loaded %d instances from %s" % (line_no, data_fname))
+        _logger.debug("Loaded %d instances from %s" % (line_no, data_fname))
 
     # TODO Setup automatic test questions for each annotation schema,
     # currently we are doing it similar to survey flow to allow multilingual test questions
@@ -140,41 +186,41 @@ def load_all_data(config):
                             "text": line["text"].replace("[test_question_choice]", l),
                         }
                         # currently we simply move all these test questions to the end of the instance list
-                        instance_id_to_data.update({item["id"]: item})
-                        instance_id_to_data.move_to_end(item["id"], last=True)
+                        _instance_id_to_data.update({item["id"]: item})
+                        _instance_id_to_data.move_to_end(item["id"], last=True)
 
     # insert survey questions into instance_id_to_data
     for page in config.get("pre_annotation_pages", []):
         # TODO Currently we simply remove the language type before -,
         # but we need a more elegant way for this in the future
         item = {"id": page['id'], "text": page['text'] if 'text' in page else page['id'].split("-")[-1][:-5]}
-        instance_id_to_data.update({page['id']: item})
-        instance_id_to_data.move_to_end(page['id'], last=False)
+        _instance_id_to_data.update({page['id']: item})
+        _instance_id_to_data.move_to_end(page['id'], last=False)
 
     for it in ["prestudy_failed_pages", "prestudy_passed_pages"]:
         for page in config.get(it, []):
             # TODO Currently we simply remove the language type before -,
             # but we need a more elegant way for this in the future
             item = {"id": page['id'], "text": page['text'] if 'text' in page else page['id'].split("-")[-1][:-5]}
-            instance_id_to_data.update({page['id']: item})
-            instance_id_to_data.move_to_end(page['id'], last=False)
+            _instance_id_to_data.update({page['id']: item})
+            _instance_id_to_data.move_to_end(page['id'], last=False)
 
     for page in config.get("post_annotation_pages", []):
         item = {"id": page['id'], "text": page['text'] if 'text' in page else page['id'].split("-")[-1][:-5]}
-        instance_id_to_data.update({page['id']: item})
-        instance_id_to_data.move_to_end(page['id'], last=True)
+        _instance_id_to_data.update({page['id']: item})
+        _instance_id_to_data.move_to_end(page['id'], last=True)
 
     # Generate the text to display in instance_id_to_data
-    for inst_id in instance_id_to_data:
-        instance_id_to_data[inst_id]["displayed_text"] = get_displayed_text(
-            instance_id_to_data[inst_id][config["item_properties"]["text_key"]]
+    for inst_id in _instance_id_to_data:
+        _instance_id_to_data[inst_id]["displayed_text"] = get_displayed_text(
+            _instance_id_to_data[inst_id][config["item_properties"]["text_key"]]
         )
 
     # TODO: make this fully configurable somehow...
     re_to_highlights = defaultdict(list)
     if "keyword_highlights_file" in config:
         kh_file = config["keyword_highlights_file"]
-        logger.debug("Loading keyword highlighting from %s" % (kh_file))
+        _logger.debug("Loading keyword highlighting from %s" % (kh_file))
 
         with open(kh_file, "rt") as f:
             # TODO: make it flexible based on keyword
@@ -183,7 +229,7 @@ def load_all_data(config):
                 regex = r"\b" + row["Word"].replace("*", "[a-z]*?") + r"\b"
                 re_to_highlights[regex].append((row["Schema"], row["Label"]))
 
-        logger.debug(
+        _logger.debug(
             "Loaded %d regexes to map to %d labels for dynamic highlighting"
             % (len(re_to_highlights), i)
         )
@@ -224,7 +270,7 @@ def load_all_data(config):
                     for p in config[it + "_pages"]:
                         task_assignment["assigned"][p['id']] = 0
 
-            for _id in instance_id_to_data:
+            for _id in _instance_id_to_data:
                 if _id in task_assignment["assigned"]:
                     continue
                 # add test questions to the assignment dict
@@ -251,7 +297,7 @@ def get_displayed_text(text):
                 text = str(text)
         if isinstance(text, list):
             if config["list_as_text"]["text_list_prefix_type"] == "alphabet":
-                prefix_list = list(string.ascii_uppercase)
+                prefix_list = list(ascii_uppercase)
                 text = [prefix_list[i] + ". " + text[i] for i in range(len(text))]
             elif config["list_as_text"]["text_list_prefix_type"] == "number":
                 text = [str(i) + ". " + text[i] for i in range(len(text))]
@@ -263,11 +309,11 @@ def get_displayed_text(text):
             if "randomization" in config["list_as_text"]:
                 if config["list_as_text"].get("randomization") == "value":
                     values = list(text.values())
-                    random.shuffle(values)
+                    _random.shuffle(values)
                     text = {key: value for key, value in zip(text.keys(), values)}
                 elif config["list_as_text"].get("randomization") == "key":
                     keys = list(text.keys())
-                    random.shuffle(keys)
+                    _random.shuffle(keys)
                     text = {key: text[key] for key in keys}
                 else:
                     print("WARNING: %s currently not supported for list_as_text, please check your .yaml file"%config["list_as_text"].get("randomization"))

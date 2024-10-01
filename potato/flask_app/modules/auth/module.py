@@ -1,23 +1,20 @@
 """
-filename: login.py
+module: auth
+filename: module.py
 date: 09/26/2024
-author: Tristan Hilbert (aka TFlexSoom)
+author: Jiaxin Pei (aka Pedro) and Tristan Hilbert (aka TFlexSoom)
 desc: Defines Auth Service for Potato Application
 """
 
-from dataclasses import dataclass
 import logging
-import os
-from typing import NewType
 
-from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
-from potato.server_utils.cache_utils import singleton
+from potato.flask_app.modules.auth.form import DEBUG_USER, PASSWORD_PLACEHOLDER, LoginForm, User, Uuid
+from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 
-@singleton
-def logger():
-    return logging.getLogger("AuthLogger")
+_logger = logging.getLogger("AuthLogger")
+_allow_all_users: bool = False
 
 @module_getter
 def _get_module():
@@ -36,40 +33,13 @@ class AuthConfiguration:
     user_config_path: str = "potato/user_config.json"
     verbose: bool = False
     use_database: bool = False
-
-@dataclass
-class LoginForm:
-    action: str
-    username: str
-    password: str
-
-__DEBUG_USER = LoginForm(
-    "login",
-    "debug_user",
-    "debug",
-)
-
-__PASSWORD_PLACEHOLDER = "require_no_password"
-
-Uuid = NewType('Uuid', str)
-
-@dataclass
-class User:
-    uuid: Uuid
-    username: str
-    password: str
-
-@dataclass
-class AuthState:
-    allow_all_users: bool = True
-    users: dict[Uuid, User]
-    username_lookup: dict[str, Uuid]
-
-@singleton
-def __get_auth_state():
-    return AuthState()
+    allow_all_users: bool = False
 
 def start():
+    global _allow_all_users
+    if AuthConfiguration.allow_all_users:
+        _allow_all_users = True
+
     if not AuthConfiguration.is_loading_users:
         return
     
@@ -77,7 +47,7 @@ def start():
     if not os.path.isfile(user_config_path):
         return
     
-    logger().info(f"Loading users from {user_config_path}")
+    _logger.info(f"Loading users from {user_config_path}")
     users = fs_persistance_layer().query_object_rows(
         user_config_path,
         "", # For SQL stick to db
@@ -107,10 +77,10 @@ def from_json_to_cached_user(user: dict):
 
 def clean_login_input(form: LoginForm):
     if AuthConfiguration.debug:
-        return __DEBUG_USER
+        return DEBUG_USER
     
     if AuthConfiguration.login_type == "url_direct":
-        form.password = __PASSWORD_PLACEHOLDER
+        form.password = PASSWORD_PLACEHOLDER
     
     return form
 
@@ -118,16 +88,16 @@ def is_valid_login(form: LoginForm, args):
     if AuthConfiguration.debug:
         return True
     
-    if __get_auth_state().allow_all_users:
+    if _allow_all_users:
         return True
 
     if AuthConfiguration.login_type == "url_direct":
         url_arguments = AuthConfiguration.login_argument
         username = '&'.join([args.get(it) for it in url_arguments])
-        logger().info(f"url direct logging in with {'&'.join(url_arguments)}={username}")
+        _logger.info(f"url direct logging in with {'&'.join(url_arguments)}={username}")
         return True
     
-    if AuthConfiguration.url_direct and form.password == __PASSWORD_PLACEHOLDER:
+    if AuthConfiguration.url_direct and form.password == PASSWORD_PLACEHOLDER:
         return True
     
     if is_valid_password(form.username, form.password):

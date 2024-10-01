@@ -1,62 +1,91 @@
-class ActiveLearningState:
-    """
-    A class for maintaining state on active learning.
-    """
+"""
+module: active_learning
+filename: module.py
+date: 09/26/2024
+author: David Jurgens and Jiaxin Pei (aka Pedro)
+desc: Defines Active Learning for models during collection
+"""
 
-    def __init__(self):
-        self.id_to_selection_type = {}
-        self.id_to_update_round = {}
-        self.cur_round = 0
+from collections import Counter, defaultdict
+from itertools import zip_longest
+import logging
+from random import Random
 
-    def update_selection_types(self, id_to_selection_type):
-        self.cur_round += 1
+from sklearn.pipeline import Pipeline
+import tqdm
 
-        for iid, st in id_to_selection_type.items():
-            self.id_to_selection_type[iid] = st
-            self.id_to_update_round[iid] = self.cur_round
+from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.class_utils import get_class
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
 
-import random
+_logger = logging.getLogger("ActiveLearning")
+_random_instance = Random()
+_is_actively_learning: bool = False
 
+@module_getter
+def _get_module():
+    return Module(
+        configuration=ActiveLearningConfiguration,
+        start=start
+    )
+
+@config
+class ActiveLearningConfiguration:
+    debug: bool = False
+    is_actively_learning: bool = False
+    active_learning_schema: list[str] = []
+    classifier_name: str = ""
+    vectorizer_name: str = ""
+    resolution_strategy: str = ""
+    classifier_kwargs: dict = {}
+    vectorizer_kwargs: dict = {}
+    random_sample_percent: float = 5.0
+    max_inferred_predictions: int = -1
+    item_propertis_text_key: str = ""
+
+
+def start():
+    global _is_actively_learning
+    
+    if ActiveLearningConfiguration.debug:
+        _random_instance.seed(0)
+    else:
+        _random_instance.seed()
+
+    if not ActiveLearningConfiguration.is_actively_learning:
+        return
+        
+    _is_actively_learning = True
+
+    configs = [
+        ActiveLearningConfiguration.classifier_name,
+        ActiveLearningConfiguration.vectorizer_name,
+        ActiveLearningConfiguration.resolution_strategy,
+    ]
+
+    if "" in configs:
+        raise Exception(f'Missing configuration in active learning\n{configs}')
 
 def actively_learn():
-    global user_to_annotation_state
-    global instance_id_to_data
+    global _is_actively_learning
 
-    if "active_learning_config" not in config:
-        logger.warning(
-            "the server is trying to do active learning " + "but this hasn't been configured"
+    if not _is_actively_learning:
+        _logger.warning(
+            "the server is trying to do active learning " 
+            + "but this hasn't been configured"
         )
         return
-
-    al_config = config["active_learning_config"]
-
-    # Skip if the user doesn't want us to do active learning
-    if "enable_active_learning" in al_config and not al_config["enable_active_learning"]:
-        return
-
-    if "classifier_name" not in al_config:
-        raise Exception('active learning enabled but no classifier is set with "classifier_name"')
-
-    if "vectorizer_name" not in al_config:
-        raise Exception('active learning enabled but no vectorizer is set with "vectorizer_name"')
-
-    if "resolution_strategy" not in al_config:
-        raise Exception("active learning enabled but resolution_strategy is not set")
-
-    # This specifies which schema we need to use in active learning (separate
-    # classifiers for each). If the user doesn't specify these, we use all of
-    # them.
-    schema_used = []
-    if "active_learning_schema" in al_config:
-        schema_used = al_config["active_learning_schema"]
-
-    cls_kwargs = al_config.get("classifier_kwargs", {})
-    cls_kwargs = al_config.get("classifier_kwargs", {})
-    vectorizer_kwargs = al_config.get("vectorizer_kwargs", {})
-    strategy = al_config["resolution_strategy"]
+    
+    schema_used = ActiveLearningConfiguration.active_learning_schema
+    cls_kwargs = ActiveLearningConfiguration.classifier_kwargs
+    vectorizer_kwargs = ActiveLearningConfiguration.vectorizer_kwargs
+    strategy = ActiveLearningConfiguration.resolution_strategy
 
     # Collect all the current labels
     instance_to_labels = defaultdict(list)
+
     for uas in user_to_annotation_state.values():
         for iid, annotation in uas.instance_id_to_labeling.items():
             instance_to_labels[iid].append(annotation)
@@ -80,7 +109,7 @@ def actively_learn():
     texts = []
     # We'll train one classifier for each scheme
     scheme_to_labels = defaultdict(list)
-    text_key = config["item_properties"]["text_key"]
+    text_key = ActiveLearningConfiguration.item_properties_text_key
     for iid, schema_to_label in instance_to_label.items():
         # get the text
         text = instance_id_to_data[iid][text_key]
@@ -103,7 +132,7 @@ def actively_learn():
         # Sanity check we have more than 1 label
         label_counts = Counter(labels)
         if len(label_counts) < 2:
-            logger.warning(
+            _logger.warning(
                 (
                     "In the current data, data labeled with %s has only a"
                     + "single unique label, which is insufficient for "
@@ -114,21 +143,21 @@ def actively_learn():
             continue
 
         # Instantiate the classifier and the tokenizer
-        cls = get_class(al_config["classifier_name"])(**cls_kwargs)
-        vectorizer = get_class(al_config["vectorizer_name"])(**vectorizer_kwargs)
+        cls = get_class(ActiveLearningConfiguration.classifier_name)(**cls_kwargs)
+        vectorizer = get_class(ActiveLearningConfiguration.vectorizer_name)(**vectorizer_kwargs)
 
         # Train the classifier
         clf = Pipeline([("vectorizer", vectorizer), ("classifier", cls)])
-        logger.info("training classifier for %s..." % scheme)
+        _logger.info("training classifier for %s..." % scheme)
         clf.fit(texts, labels)
-        logger.info("done training classifier for %s" % scheme)
+        _logger.info("done training classifier for %s" % scheme)
         scheme_to_classifier[scheme] = clf
 
     # Get the remaining unlabeled instances and start predicting
     unlabeled_ids = [iid for iid in instance_id_to_data if iid not in instance_to_label]
-    random.shuffle(unlabeled_ids)
+    _random_instance.shuffle(unlabeled_ids)
 
-    perc_random = al_config["random_sample_percent"] / 100
+    perc_random = ActiveLearningConfiguration.random_sample_percent / 100
 
     # Split to keep some of the data random
     random_ids = unlabeled_ids[int(len(unlabeled_ids) * perc_random) :]
@@ -136,8 +165,8 @@ def actively_learn():
     remaining_ids = []
 
     # Cap how much inference we need to do (important for big datasets)
-    if "max_inferred_predictions" in al_config:
-        max_insts = al_config["max_inferred_predictions"]
+    max_insts = ActiveLearningConfiguration.max_inferred_predictions
+    if max_insts > -1:
         remaining_ids = unlabeled_ids[max_insts:]
         unlabeled_ids = unlabeled_ids[:max_insts]
 
@@ -145,14 +174,14 @@ def actively_learn():
     scheme_to_predictions = {}
     unlabeled_texts = [instance_id_to_data[iid][text_key] for iid in unlabeled_ids]
     for scheme, clf in scheme_to_classifier.items():
-        logger.info("Inferring labels for %s" % scheme)
+        _logger.info("Inferring labels for %s" % scheme)
         preds = clf.predict_proba(unlabeled_texts)
         scheme_to_predictions[scheme] = preds
 
     # Figure out which of the instances to prioritize, keeping the specified
     # ratio of random-vs-AL-selected instances.
     ids_and_confidence = []
-    logger.info("Scoring items by model confidence")
+    _logger.info("Scoring items by model confidence")
     for i, iid in enumerate(tqdm(unlabeled_ids)):
         most_confident_pred = 0
         mp_scheme = None
@@ -190,10 +219,10 @@ def actively_learn():
     for annotation_state in user_to_annotation_state.values():
         annotation_state.reorder_remaining_instances(new_id_order, already_annotated)
 
-    logger.info("Finished reording instances")
+    _logger.info("Finished reording instances")
 
 
 def resolve(annotations, strategy):
     if strategy == "random":
-        return random.choice(annotations)
+        return _random_instance.choice(annotations)
     raise Exception('Unknonwn annotation resolution strategy: "%s"' % (strategy))

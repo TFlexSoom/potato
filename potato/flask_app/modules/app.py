@@ -8,8 +8,8 @@ desc: Defines Verbosity and Root Settings for Flask App
 from dataclasses import dataclass
 import logging
 from typing import Any
-from potato.flask_app.modules.database.database import db_persistance_layer
-from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
+from potato.flask_app.modules.persistance.database import db_persistance_layer
+from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
 from potato.server_utils.cache_utils import singleton
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
