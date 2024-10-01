@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import logging
 from typing import NewType
 
-from potato.server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
 
 @singleton
 def __get_logger():

@@ -4,7 +4,7 @@ Span Layout
 
 import logging
 from collections.abc import Mapping
-from potato.server_utils.config import config
+from potato.server_utils.config_utils import config
 
 logger = logging.getLogger(__name__)
 

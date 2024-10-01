@@ -5,7 +5,7 @@
 import os
 import logging
 
-from potato.server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
 
 @singleton
 def __get_logger():

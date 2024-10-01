@@ -6,8 +6,8 @@ desc: Defined routes for login/logout and other authentication needs
 """
 
 from flask import Blueprint, render_template, request
-from flask_app.modules.auth import is_logged_in
-from server_utils.cache import singleton
+from potato.flask_app.modules.auth.auth import is_logged_in
+from potato.server_utils.cache_utils import singleton
 from server_utils.flask_utils import route
 
 @singleton

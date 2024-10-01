@@ -5,9 +5,9 @@ import atexit
 import logging
 from flask import Flask
 from potato.server_utils.arg_utils import arguments
-from potato.server_utils.config import from_cli_args
-from potato.server_utils.cache import singleton
-from potato.server_utils.module import configure, start, cleanup
+from potato.server_utils.config_utils import from_cli_args
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.module_utils import configure, start, cleanup
 from potato.flask_app.modules.app import set_logging_verbosity, get_port, is_very_verbose
 
 @singleton

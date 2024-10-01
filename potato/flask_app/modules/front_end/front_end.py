@@ -15,24 +15,23 @@ from potato.flask_app.modules.front_end.templating.compile import CompileData, c
 from potato.flask_app.modules.front_end.templating.corrections import correct_template
 from potato.flask_app.modules.front_end.templating.templates import HTML_TEMPLATE_DICT, Template, TemplatePaths, read_html
 from potato.flask_app.modules.front_end.templating.validation import valid_absolute_path_or_raise
-from potato.server_utils.cache import singleton
-from potato.server_utils.config import config
-from potato.server_utils.module import Module, module_getter
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
 
 @singleton
-def __get_logger():
+def _logger():
     return logging.getLogger("TemplateModule")
 
 @module_getter
-def __module():
+def _module():
     return Module(
-        configure=__get_configuration(),
+        configure=TemplateConfig,
         start=start,
         cleanup=lambda: None,
     )
 
 @config
-@dataclass
 class TemplateConfig:
     survey_flow_is_on: bool = False
     html_layout: str = HTML_TEMPLATE_DICT["html_layout"]["default"]
@@ -47,23 +46,14 @@ class TemplateConfig:
     custom_layout: bool = False
     annotation_codebook_url: str = ""
     annotation_task_name: str = ""
-    
-
-@singleton
-def __get_configuration():
-    return TemplateConfig()
-
-# @singleton
-# def __get_templates():
-#     return __Templates()
 
 @dataclass
-class __OutputMetadata:
+class _OutputMetadata:
     site_file: str
 
 @singleton
-def __get_output_metadata():
-    return __OutputMetadata()
+def _get_output_metadata():
+    return _OutputMetadata()
 
 def start():
     prefix = os.getcwd()
@@ -74,28 +64,28 @@ def start():
     paths = TemplatePaths()
 
     for field_name in layout_fields:
-        value = getattr(__get_configuration(), field_name)
+        value = getattr(TemplateConfig, field_name)
 
         # value is the default keyword
         if value == HTML_TEMPLATE_DICT[field_name]["default"]:
-            __get_logger().info(f"{field_name} either defaulted or configured to default")
+            _logger().info(f"{field_name} either defaulted or configured to default")
 
         # value is a keyword rather than a path
         if value in HTML_TEMPLATE_DICT[field_name].keys():
             setattr(
                 paths, 
-                field_name, 
+                field_name,
                 os.path.join(prefix, HTML_TEMPLATE_DICT[field_name][value])
             )
             continue
         
         # value is a path (relative or absolute)
-        abs_path = valid_absolute_path_or_raise(field_name, value, __get_configuration().config_path)
+        abs_path = valid_absolute_path_or_raise(field_name, value, TemplateConfig.config_path)
         setattr(paths, field_name, abs_path)
 
     generate_site(paths)
 
-    if __get_configuration().survey_flow_is_on:
+    if TemplateConfig.survey_flow_is_on:
         generate_surveyflow_pages(config)
 
 
@@ -110,8 +100,8 @@ class TaskHtmlAndBindings:
     bindings: list[KeyBinding]
 
 def generate_task_html_and_bindings(abs_html_layout_path):
-    annotation_schemes = __get_configuration().annotation_schemes
-    __get_logger().debug(f"Saw {len(annotation_schemes)} annotation scheme(s)")
+    annotation_schemes = TemplateConfig.annotation_schemes
+    _logger().debug(f"Saw {len(annotation_schemes)} annotation scheme(s)")
 
     all_keybindings = [KeyBinding("&#8592;", "Move backward"), KeyBinding("&#8594;", "Move forward")]
 
@@ -121,7 +111,7 @@ def generate_task_html_and_bindings(abs_html_layout_path):
         all_keybindings.extend(keybindings)
         schema_layouts[annotation_scheme["name"]] = schema_layout
     
-    if not __get_configuration().custom_layout:
+    if not TemplateConfig.custom_layout:
         task_html_layout = task_html_layout.replace("{{annotation_schematic}}", "\n".join(schema_layouts))
         return TaskHtmlAndBindings(task_html_layout, all_keybindings)
 
@@ -133,7 +123,7 @@ def generate_task_html_and_bindings(abs_html_layout_path):
         # Check that we actually updated the template
         if task_html_layout == updated_layout:
             raise Exception(
-                f"{__get_configuration().config_file} indicated a custom layout"
+                f"{TemplateConfig.config_file} indicated a custom layout"
                 + f" but a corresponding layout was not found for {schema_name} in"
                 + f" {abs_html_layout_path}. Check to ensure the config.yaml and "
                 + f" layout.html files have matching names"
@@ -200,6 +190,19 @@ STATS_KEYS = {
     "Agreement": "Agreement",
 }
 
+SCHEMAS = {
+    "multiselect": generate_multiselect_layout,
+    "multirate": generate_multirate_layout,
+    "radio": generate_radio_layout,
+    "highlight": generate_span_layout,
+    "likert": generate_likert_layout,
+    "text": generate_textbox_layout,
+    "number": generate_number_layout,
+    "pure_display": generate_pure_display_layout,
+    "select": generate_select_layout,
+    "slider": generate_slider_layout,
+}
+
 def generate_schematic(annotation_scheme):
     """
     Based on the task's yaml configuration, generate the full HTML site needed
@@ -207,21 +210,10 @@ def generate_schematic(annotation_scheme):
     """
     # Figure out which kind of tasks we're doing and build the input frame
     annotation_type = annotation_scheme["annotation_type"]
-    annotation_func = {
-        "multiselect": generate_multiselect_layout,
-        "multirate": generate_multirate_layout,
-        "radio": generate_radio_layout,
-        "highlight": generate_span_layout,
-        "likert": generate_likert_layout,
-        "text": generate_textbox_layout,
-        "number": generate_number_layout,
-        "pure_display": generate_pure_display_layout,
-        "select": generate_select_layout,
-        "slider": generate_slider_layout,
-    }.get(annotation_type)
+    annotation_func = SCHEMAS.get(annotation_type)
 
     if not annotation_func:
-        raise Exception("unsupported annotation type: %s" % annotation_type)
+        raise Exception(f"unsupported annotation type: {annotation_type}")
 
     return annotation_func(annotation_scheme)
 

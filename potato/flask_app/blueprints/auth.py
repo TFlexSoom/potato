@@ -7,10 +7,10 @@ desc: Defined routes for login/logout and other authentication
 """
 
 from flask import Blueprint, render_template, request
-from flask_app.modules.auth import (
+from potato.flask_app.modules.auth.auth import (
     LoginForm, clean_login_input, is_valid_login, add_user
 )
-from server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
 from server_utils.flask_utils import route
 
 @singleton

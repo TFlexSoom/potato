@@ -1,49 +1,63 @@
 """
-Config module.
+filename: module.py
+date: 09/26/2024
+author: Tristan Hilbert (aka TFlexSoom)
+desc: Defines a configuration which allows all of the modules
+  to request a series of entries within the configuration (this
+  comes from the cli-args, .env, and other sources) such that
+  there is a single source of truth for 'configuration'
 """
 
-from typing import Any
+
+from typing import Any, NewType, Type
 from collections.abc import Callable
 from dataclasses import dataclass, fields
-from server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
 
 @dataclass
-class __Config:
-    global_config: dict[str, Any] = {}
+class _GlobalConfig:
+    values: dict[str, Any] = {}
     assertion: dict[str, Callable] = {}
 
 @singleton
-def __get_config():
-    return __Config()
+def _global_config():
+    return _GlobalConfig()
 
-def __create_type_assertion(type: type):
-    def __type_assertion(val):
+def _create_type_assertion(type: type):
+    def _type_assertion(val):
         assert isinstance(val, type)
     
-    return __type_assertion
+    return _type_assertion
 
-def config(cls):
+class Config:
+    def __getattr__(self, name: str) -> Any:
+        return _global_config().values[name]
+    
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise Exception("Configs are Immutable")
+
+def config(cls, *args, **kwargs):
+    cls = dataclass(args, kwargs)
+
     for field in fields(cls):
-        if field in __get_config().global_config:
+        if field in _global_config().values:
             # could be worth logging
             continue
 
-        assertion = __create_type_assertion(field.type)
+        assertion = _create_type_assertion(field.type)
         assertion(field.default)
-        __get_config().global_config[field.name] = field.default
-        __get_config().global_config[field.name] = assertion
-
-def pull_values(obj):
-    for field in fields(obj):
-        setattr(obj, field.name, __get_config().global_config[field.name])
+        _global_config().values[field.name] = field.default
+        _global_config().values[field.name] = assertion
+    
+    return Config()
         
 def from_cli_args(args):
     for key, value in vars(args):
-        if key not in __get_config().global_config.keys():
+        if key not in _global_config().values.keys():
             raise KeyError(f"args has {key} which is not supported by any service")
 
-        __get_config().assertion[key](value)
-        __get_config().global_config = value
+        _global_config().assertion[key](value)
+        _global_config().values = value
 
 def get_value(key: str):
-    return __get_config().global_config[key]
+    return _global_config().values[key]

@@ -7,7 +7,7 @@ desc: Defined routes for static file serving
 
 import os
 from flask import Blueprint
-from server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
 
 @singleton
 def get_blueprint():

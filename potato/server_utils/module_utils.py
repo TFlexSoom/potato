@@ -9,11 +9,11 @@ desc: Defines a module in the context of the flask server. This allows
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from server_utils.cache import singleton
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.config_utils import ConfigClass, pull_values
 
 @dataclass
 class Module:
-    configure: object
     persistance: Callable[[], None] = lambda: None
     start: Callable[[], None] = lambda: None
     cleanup: Callable[[], None] = lambda: None
@@ -28,7 +28,7 @@ def register_module(name, service: Module):
 def module_getter(func: Callable[[], Module], name=f"SERVICE_{len(get_modules())}"):
     register_module(name, func())
 
-def __roll_through(binded_func: Callable[[Module], None], process: str):
+def _roll_through(binded_func: Callable[[Module], None], process: str):
     last_service_name = ''
     try:
       for name, service in get_modules().items():
@@ -38,11 +38,11 @@ def __roll_through(binded_func: Callable[[Module], None], process: str):
       print(f"Exception raised during {process} within service {last_service_name}\n{e}")
       quit(1)
 
-def configure():
-    __roll_through(lambda service: service.configure(), "configure")
+def persistance():
+    _roll_through(lambda service: service.persistance(), "persistance")
 
 def start():
-    __roll_through(lambda service: service.start(), "start")
+    _roll_through(lambda service: service.start(), "start")
 
 def cleanup():
-    __roll_through(lambda service: service.cleanup(), "cleanup")
+    _roll_through(lambda service: service.cleanup(), "cleanup")

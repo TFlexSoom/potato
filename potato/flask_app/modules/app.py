@@ -10,9 +10,9 @@ import logging
 from typing import Any
 from potato.flask_app.modules.database.database import db_persistance_layer
 from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
-from potato.server_utils.cache import singleton
-from potato.server_utils.config import config
-from potato.server_utils.module import Module, module_getter
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
 
 @config
 @dataclass

@@ -11,23 +11,22 @@ import os
 from typing import NewType
 
 from potato.flask_app.modules.filesystem.filesystem import fs_persistance_layer
-from server_utils.cache import singleton
-from server_utils.config import config
-from server_utils.module import Module, module_getter
+from potato.server_utils.cache_utils import singleton
+from potato.server_utils.config_utils import config
+from potato.server_utils.module_utils import Module, module_getter
 
 @singleton
 def logger():
     return logging.getLogger("AuthLogger")
 
 @module_getter
-def __get_module():
+def _get_module():
     return Module(
-        configuration=__get_configuration(),
+        configuration=AuthConfiguration,
         start=start
     )
 
 @config
-@dataclass
 class AuthConfiguration:
     debug: bool = False
     url_direct: bool = False
@@ -37,10 +36,6 @@ class AuthConfiguration:
     user_config_path: str = "potato/user_config.json"
     verbose: bool = False
     use_database: bool = False
-
-@singleton
-def __get_configuration():
-    return AuthConfiguration()
 
 @dataclass
 class LoginForm:
@@ -75,10 +70,10 @@ def __get_auth_state():
     return AuthState()
 
 def start():
-    if not __get_configuration().is_loading_users:
+    if not AuthConfiguration.is_loading_users:
         return
     
-    user_config_path = __get_configuration().user_config_path
+    user_config_path = AuthConfiguration.user_config_path
     if not os.path.isfile(user_config_path):
         return
     
@@ -111,28 +106,28 @@ def from_json_to_cached_user(user: dict):
 
 
 def clean_login_input(form: LoginForm):
-    if __get_configuration().debug:
+    if AuthConfiguration.debug:
         return __DEBUG_USER
     
-    if __get_configuration().login_type == "url_direct":
+    if AuthConfiguration.login_type == "url_direct":
         form.password = __PASSWORD_PLACEHOLDER
     
     return form
 
 def is_valid_login(form: LoginForm, args):
-    if __get_configuration().debug:
+    if AuthConfiguration.debug:
         return True
     
     if __get_auth_state().allow_all_users:
         return True
 
-    if __get_configuration().login_type == "url_direct":
-        url_arguments = __get_configuration().login_argument
+    if AuthConfiguration.login_type == "url_direct":
+        url_arguments = AuthConfiguration.login_argument
         username = '&'.join([args.get(it) for it in url_arguments])
         logger().info(f"url direct logging in with {'&'.join(url_arguments)}={username}")
         return True
     
-    if __get_configuration().url_direct and form.password == __PASSWORD_PLACEHOLDER:
+    if AuthConfiguration.url_direct and form.password == __PASSWORD_PLACEHOLDER:
         return True
     
     if is_valid_password(form.username, form.password):
