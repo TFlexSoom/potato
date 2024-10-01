@@ -6,6 +6,7 @@ desc: Filesystem Module for keeping the legacy behavior of potato
 """
 
 from dataclasses import dataclass
+from functools import cache
 import logging
 from json import dump as json_dump, load as json_load, loads as json_loads
 from typing import Callable
@@ -17,11 +18,10 @@ from potato.server_utils.persistance_utils import (
     PersistanceLayer, Result, SQLResult, SQLString, 
     YamlResult,
 )
-from potato.server_utils.cache_utils import singleton
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 
-@singleton
+@cache
 def logger():
     return logging.getLogger("DatabaseLogger")
 
@@ -39,7 +39,7 @@ class FileSystemConfiguration:
     verbose: bool = False
     use_filesystem: bool = False
 
-@singleton
+@cache
 def __get_configuration():
     return FileSystemConfiguration()
 

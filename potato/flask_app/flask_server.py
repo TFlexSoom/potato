@@ -2,15 +2,15 @@
 Driver to run a flask server.
 """
 import atexit
+from functools import cache
 import logging
 from flask import Flask
 from potato.server_utils.arg_utils import arguments
 from potato.server_utils.config_utils import from_cli_args
-from potato.server_utils.cache_utils import singleton
 from potato.server_utils.module_utils import configure, start, cleanup
 from potato.flask_app.modules.app import set_logging_verbosity, get_port, is_very_verbose
 
-@singleton
+@cache
 def get_app():
     return Flask(__name__)
 

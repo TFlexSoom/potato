@@ -8,20 +8,16 @@ desc: Defines a configuration which allows all of the modules
   there is a single source of truth for 'configuration'
 """
 
-
-from typing import Any, NewType, Type
+from typing import Any
 from collections.abc import Callable
 from dataclasses import dataclass, fields
-from potato.server_utils.cache_utils import singleton
 
 @dataclass
 class _GlobalConfig:
     values: dict[str, Any] = {}
     assertion: dict[str, Callable] = {}
 
-@singleton
-def _global_config():
-    return _GlobalConfig()
+_global_config = _GlobalConfig()
 
 def _create_type_assertion(type: type):
     def _type_assertion(val):

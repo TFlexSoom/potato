@@ -14,8 +14,6 @@ from random import Random
 from sklearn.pipeline import Pipeline
 import tqdm
 
-from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
-from potato.server_utils.cache_utils import singleton
 from potato.server_utils.class_utils import get_class
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter

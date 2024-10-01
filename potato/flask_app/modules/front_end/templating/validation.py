@@ -5,11 +5,7 @@
 import os
 import logging
 
-from potato.server_utils.cache_utils import singleton
-
-@singleton
-def __get_logger():
-    return logging.getLogger("TemplateModuleValidation")
+_logger = logging.getLogger("TemplateModuleValidation")
 
 def valid_absolute_path_or_raise(
         html_file_type, 
@@ -17,7 +13,7 @@ def valid_absolute_path_or_raise(
         config_path
     ):
 
-    __get_logger().info(
+    _logger.info(
         f"{html_file_type} will be loaded from user-defined file {selected_path}"
     )
     

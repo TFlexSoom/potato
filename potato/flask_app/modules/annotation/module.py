@@ -15,11 +15,8 @@ import simpledorff
 import pandas as pd
 
 from potato.flask_app.modules.annotation.color import get_color_for_schema_label
-from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
 from potato.flask_app.modules.prescreen.module import check_prestudy_status
 from potato.flask_app.modules.project.task import assign_instances_to_user
-from potato.server_utils.cache_utils import singleton
-from potato.server_utils.class_utils import get_class
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 

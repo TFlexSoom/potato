@@ -10,18 +10,15 @@ from dataclasses import dataclass
 import logging
 import os
 import sys
-from typing import Callable
 from potato.flask_app.modules.front_end.templating.compile import CompileData, compile_template
 from potato.flask_app.modules.front_end.templating.corrections import correct_template
 from potato.flask_app.modules.front_end.templating.templates import HTML_TEMPLATE_DICT, Template, TemplatePaths, read_html
 from potato.flask_app.modules.front_end.templating.validation import valid_absolute_path_or_raise
-from potato.server_utils.cache_utils import singleton
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 
-@singleton
-def _logger():
-    return logging.getLogger("TemplateModule")
+_logger = logging.getLogger("TemplateModule")
+_site_file = ""
 
 @module_getter
 def _module():
@@ -46,14 +43,6 @@ class TemplateConfig:
     custom_layout: bool = False
     annotation_codebook_url: str = ""
     annotation_task_name: str = ""
-
-@dataclass
-class _OutputMetadata:
-    site_file: str
-
-@singleton
-def _get_output_metadata():
-    return _OutputMetadata()
 
 def start():
     prefix = os.getcwd()
@@ -139,7 +128,7 @@ def compile_data(paths: TemplatePaths, templates: Template):
     task_and_bindings = generate_task_html_and_bindings(paths.html_layout)
 
     codebook_html = ""
-    annotation_codebook_url = __get_configuration().annotation_codebook_url
+    annotation_codebook_url = TemplateConfig.annotation_codebook_url
     if len(annotation_codebook_url) > 0:
         codebook_html = (
             f'<a href="{annotation_codebook_url}"' +
@@ -150,7 +139,7 @@ def compile_data(paths: TemplatePaths, templates: Template):
         header=templates.header_file,
         task_html_layout=task_and_bindings.task_html,
         codebook_html=codebook_html,
-        annotation_task_name=__get_configuration().annotation_task_name,
+        annotation_task_name=TemplateConfig.annotation_task_name,
         keybindings_desc=generate_keybindings_sidebar(config, task_and_bindings.bindings),
         statistics_layout=generate_statistics_sidebar(STATS_KEYS),
     )
@@ -162,8 +151,8 @@ def generate_site(paths: TemplatePaths):
     the yaml file.
     """
     
-    site_dir = __get_configuration().site_dir
-    __get_logger().info(f"Generating anntotation site at {site_dir}")
+    site_dir = TemplateConfig.site_dir
+    _logger.info(f"Generating anntotation site at {site_dir}")
 
     templates = read_html(paths)
 
@@ -177,9 +166,9 @@ def generate_site(paths: TemplatePaths):
     with open(output_html_fname, "wt") as outf:
         outf.write(html_template)
     
-    hyphenated_task_name = "-".join(__get_configuration().annotation_task_name.split(" "))
-    __get_output_metadata().site_file = site_name
-    __get_logger().debug(f"writing annotation html to {output_html_fname}")
+    hyphenated_task_name = "-".join(TemplateConfig.annotation_task_name.split(" "))
+    _site_file = site_name
+    _logger.debug(f"writing annotation html to {output_html_fname}")
 
 # TODO: Move this to config.yaml files
 # Items which will be displayed in the popup statistics sidebar

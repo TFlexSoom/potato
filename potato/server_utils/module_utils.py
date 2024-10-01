@@ -9,8 +9,6 @@ desc: Defines a module in the context of the flask server. This allows
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from potato.server_utils.cache_utils import singleton
-from potato.server_utils.config_utils import ConfigClass, pull_values
 
 @dataclass
 class Module:
@@ -18,20 +16,18 @@ class Module:
     start: Callable[[], None] = lambda: None
     cleanup: Callable[[], None] = lambda: None
 
-@singleton
-def get_modules():
-    return {}
+_modules = {}
 
 def register_module(name, service: Module):
-    get_modules()[name] = service
+    _modules[name] = service
 
-def module_getter(func: Callable[[], Module], name=f"SERVICE_{len(get_modules())}"):
+def module_getter(func: Callable[[], Module], name=f"SERVICE_{len(_modules.keys())}"):
     register_module(name, func())
 
 def _roll_through(binded_func: Callable[[Module], None], process: str):
     last_service_name = ''
     try:
-      for name, service in get_modules().items():
+      for name, service in _modules.items():
          last_service_name = name
          binded_func(service)
     except Exception as e:

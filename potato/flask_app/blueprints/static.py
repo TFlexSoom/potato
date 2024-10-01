@@ -5,10 +5,10 @@ author: Tristan Hilbert (aka TFlexSoom)
 desc: Defined routes for static file serving
 """
 
+from functools import cache
 import os
 from flask import Blueprint
-from potato.server_utils.cache_utils import singleton
 
-@singleton
+@cache
 def get_blueprint():
     return Blueprint('static', __name__, static_folder=os.getcwd())

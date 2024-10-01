@@ -4,11 +4,7 @@ from dataclasses import dataclass
 import logging
 from typing import NewType
 
-from potato.server_utils.cache_utils import singleton
-
-@singleton
-def __get_logger():
-    return logging.getLogger("TemplateModuleValidation")
+_logger = logging.getLogger("TemplateModuleValidation")
 
 HTML_TEMPLATE_DICT = {
     "base_html_template":{
@@ -55,7 +51,7 @@ def read_html(paths: TemplatePaths):
     layout_fields = HTML_TEMPLATE_DICT.keys()
     for field_name in layout_fields:
         abs_file_path = getattr(paths, field_name)
-        __get_logger().debug(f"Reading {field_name} from {abs_file_path}")
+        _logger.debug(f"Reading {field_name} from {abs_file_path}")
 
         with open(abs_file_path, "rt") as file:
             setattr(templates, field_name, "".join(file.readlines()))

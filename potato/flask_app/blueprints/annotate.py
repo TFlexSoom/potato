@@ -5,12 +5,12 @@ author: Tristan Hilbert (aka TFlexSoom)
 desc: Defined routes for login/logout and other authentication needs
 """
 
+from functools import cache
 from flask import Blueprint, render_template, request
 from potato.flask_app.modules.auth.module import is_logged_in
-from potato.server_utils.cache_utils import singleton
 from server_utils.flask_utils import route
 
-@singleton
+@cache
 def get_blueprint():
     blueprint = Blueprint('annotate', __name__)
     annotate_page.with_blueprint(blueprint)
