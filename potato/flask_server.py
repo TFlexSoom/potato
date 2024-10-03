@@ -38,6 +38,7 @@ from server_utils.arg_utils import arguments
 from server_utils.config_module import init_config, config
 from server_utils.front_end import generate_site, generate_surveyflow_pages
 from server_utils.schemas.span import render_span_annotations
+from server_utils.schemas.span_new import render_span_annotations as render_new_span_annotations
 from server_utils.cli_utlis import get_project_from_hub, show_project_hub
 from server_utils.prolific_apis import ProlificStudy
 
@@ -2165,6 +2166,7 @@ def annotate_page(username=None, action=None):
     # directly display the prepared displayed_text
     instance_id = instance[id_key]
     text = instance["displayed_text"]
+    var_elems = {}
 
     # also save the displayed text in the metadata dict
     # instance_id_to_data[instance_id]['displayed_text'] = text
@@ -2187,6 +2189,9 @@ def annotate_page(username=None, action=None):
     if span_annotations is not None and len(span_annotations) > 0:
         # Mark up the instance text where the annotated spans were
         text = render_span_annotations(text, span_annotations)
+        new_var = render_new_span_annotations(span_annotations)
+        if new_var != None:
+            var_elems["span_annotations"] = new_var
 
     # If the admin has specified that certain keywords need to be highlighted,
     # post-process the selected instance so that it now also has colored span
@@ -2244,6 +2249,10 @@ def annotate_page(username=None, action=None):
     else:
         html_file = config["site_file"]
 
+    var_elems_html = "".join(
+        map(lambda name, val : f'<var id="{name}"> {val} </var>', var_elems.items())
+    )
+
     # Flask will fill in the things we need into the HTML template we've created,
     # replacing {{variable_name}} with the associated text for keyword arguments
     rendered_html = render_template(
@@ -2257,6 +2266,7 @@ def annotate_page(username=None, action=None):
         total_count=lookup_user_state(username).get_real_assigned_instance_count(),
         alert_time_each_instance=config["alert_time_each_instance"],
         statistics_nav=all_statistics,
+        var_elems= var_elems_html,
         **kwargs
     )
 

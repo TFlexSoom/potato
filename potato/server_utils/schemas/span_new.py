@@ -43,9 +43,9 @@ def _to_entry(span_annotation):
 
     }
 
-def render_span_annotations(text, span_annotations):
+def render_span_annotations(span_annotations):
     if len(span_annotations) == 0:
-        return text
+        return None
 
     return json.dumps(map(_to_entry, span_annotations))
 

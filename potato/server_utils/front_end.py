@@ -54,7 +54,7 @@ def generate_schematic(annotation_scheme):
         "multirate": generate_multirate_layout,
         "radio": generate_radio_layout,
         "highlight": generate_span_layout,
-        "beta_highlight": generate_new_span_layout,
+        "beta_highlight": lambda scheme: (generate_new_span_layout(scheme), []),
         "likert": generate_likert_layout,
         "text": generate_textbox_layout,
         "number": generate_number_layout,
