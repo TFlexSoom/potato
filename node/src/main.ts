@@ -1,7 +1,5 @@
 import IntervalTree from '@flatten-js/interval-tree'
 
-(document as any)["potatoUtils"] = {
+(document as any)["potato"] = {
   IntervalTree: IntervalTree
 } as any;
-
-module.exports = {}
