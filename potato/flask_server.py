@@ -2166,7 +2166,9 @@ def annotate_page(username=None, action=None):
     # directly display the prepared displayed_text
     instance_id = instance[id_key]
     text = instance["displayed_text"]
-    var_elems = {}
+    var_elems = {
+        "instance": { "text": text }, 
+    }
 
     # also save the displayed text in the metadata dict
     # instance_id_to_data[instance_id]['displayed_text'] = text
@@ -2191,7 +2193,7 @@ def annotate_page(username=None, action=None):
         text = render_span_annotations(text, span_annotations)
         new_var = render_new_span_annotations(span_annotations)
         if new_var != None:
-            var_elems["span_annotations"] = new_var
+            var_elems["span-annotations"] = new_var
 
     # If the admin has specified that certain keywords need to be highlighted,
     # post-process the selected instance so that it now also has colored span
@@ -2250,7 +2252,7 @@ def annotate_page(username=None, action=None):
         html_file = config["site_file"]
 
     var_elems_html = "".join(
-        map(lambda name, val : f'<var id="{name}"> {val} </var>', var_elems.items())
+        map(lambda item : f'<var id="{item[0]}"> {item[1]} </var>', var_elems.items())
     )
 
     # Flask will fill in the things we need into the HTML template we've created,

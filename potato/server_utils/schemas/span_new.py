@@ -5,8 +5,7 @@ New Span Layout
 
 import json
 import logging
-from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -22,32 +21,28 @@ def _get_span_color(span_label):
         return color
     
     global span_counter
-    span_counter += 1
     color = _set_span_color(span_label, span_counter)
+    span_counter += 1
+    return color
     
 
 def _set_span_color(span_label, color):
     _assigned_colors[span_label] = color
     return color
 
-def _to_entry(span_annotation):
-    color = _get_span_color(span_annotation["annotation"])
-    return {
-        "displayed_text": span_annotation["displayed_text"],
-        "span_annotations_starts": 
-            map(lambda x: x["start"], span_annotation["span_annotations"]), 
-        "span_annotations_ends": 
-            map(lambda x: x["end"], span_annotation["span_annotations"]),
-        "color": color,
-        "bg_color": color[:-1] + ",0.25)" # change alpha from color
-
-    }
-
 def render_span_annotations(span_annotations):
     if len(span_annotations) == 0:
         return None
-
-    return json.dumps(map(_to_entry, span_annotations))
+    
+    return json.dumps({
+        "annotations": [{
+            "start": annotation["start"], 
+            "end": annotation["end"],
+            "span": annotation["span"],
+            "label": annotation["annotation"],
+            "color": _get_span_color(annotation["annotation"]),
+        } for annotation in span_annotations]
+    })
 
 @dataclass
 class SpanScheme:
