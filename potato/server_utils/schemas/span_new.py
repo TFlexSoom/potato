@@ -31,6 +31,9 @@ def _set_span_color(span_label, color):
     return color
 
 def render_span_annotations(span_annotations):
+    if span_annotations == None:
+        return None
+
     if len(span_annotations) == 0:
         return None
     

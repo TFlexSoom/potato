@@ -64,8 +64,21 @@
         return tree;
     }
 
-    function removeCollisions(tree, interval) {
+    function getCollisions(tree, interval) {
         return tree.search(interval);
+    }
+
+    function removeMany(tree, values) {
+        for(var i = 0; i < values.length; i ++) {
+            tree.remove([values[i].low, values[i].high], values[i]);
+        }
+
+        return tree;
+    }
+
+    function removeCollisions(tree, interval) {
+        var others = getCollisions(tree, interval);
+        return removeMany(tree, others);
     }
 
     function makeUnique(perpetrator, victims) {
@@ -177,11 +190,11 @@
                 continue;
             }
 
-            var others = removeCollisions(tree, interval)
+            var others = getCollisions(tree, interval)
+            tree = removeMany(tree, others);
             group = makeUnique(value, others);
             tree = insertMany(tree, group);
         }
-
         return tree;
     }
 
@@ -224,6 +237,7 @@
             }
             result += annotation.labels[k];
         }
+
         result += "\">";
 
         return result;
@@ -240,9 +254,10 @@
         var j = 0;
         while(i < text.length && j < annotations.values.length) {
             var annotation = annotations.values[j];
+
             if(annotation.low == i) {
                 render += renderAnnotationStartTag(annotation);
-            } else if (annotation.high == j) {
+            } else if (annotation.high == i) {
                 render += renderAnnotationEndTag();
                 j += 1;
             }
@@ -257,18 +272,47 @@
         annotationBox.innerHTML = render;
     }
 
+    function fromRangeToAnnotation(range) {
+        var fragment = range.cloneContents();
+        var result = "";
+        for(var i = 0; i < fragment.childNodes.length; i ++) {
+            var node = fragment.childNodes[i];
+            if(node.tagName === 'BR' || node.tagName === 'br') {
+                result += '<br>'; // a carriage return might be more formal
+            } else if (node.textContent !== '') {
+                result += node.textContent;
+            } else {
+                console.warn("not sure how to annotate:", node.tagName, node);
+            }
+        }
+        
+        return result;
+    }
+
     function getSelectedRanges() {
         var selection = window.getSelection();
+
+        if(!annotationBox.contains(selection.anchorNode)) {
+            return [];
+        }
+
         var ranges = [];
-        var range = null;
-        var length = 0;
-        var start = 0;
-        var offsetCache = 0;
         for(var i = 0; i < selection.rangeCount; i ++) {
-            range = selection.getRangeAt(i);
-            length = range.toString().length;
-            offsetCache = range.startContainer.dataset.offset || 0;
-            start = range.startOffset + offsetCache;
+            var range = selection.getRangeAt(i);
+            
+            // create second highlight to get char length
+            var startOffsetRange = range.cloneRange();
+            startOffsetRange.selectNodeContents(annotationBox);
+            startOffsetRange.setEnd(range.endContainer, range.endOffset);
+            
+            var rangeLength = fromRangeToAnnotation(range).length;
+            var start = fromRangeToAnnotation(startOffsetRange).length - rangeLength;
+            var length = Math.min(rangeLength, instanceText.length - start);
+
+            if(length === 0) {
+                continue;
+            }
+
             ranges.push({
                 start: start, 
                 end: start + length,
@@ -278,73 +322,54 @@
         return ranges;
     }
 
+    function removeAnnotations(range) {
+        annotations = removeCollisions(annotations, range);
+    }
+
+    function updateAnnotations(range) {
+        var others = getCollisions(annotations, [range.start, range.end])
+        if(others.length == 0) {
+            annotations.insert([range.start, range.end], {
+                low: range.start,
+                high: range.end,
+                span: instanceText.substring(range.start, range.end),
+                labels: [currentLabel],
+                colors: [currentColor]
+            });
+
+            return;
+        }
+
+        
+        annotations = removeMany(annotations, others);
+        var group = makeUnique({
+            low: range.start,
+            high: range.end,
+            span: instanceText.substring(range.start, range.end),
+            labels: [currentLabel],
+            colors: [currentColor]
+        }, others);
+        annotations = insertMany(annotations, group);
+    }
+
     function collectAndPostRanges(event) {
         var newRanges = getSelectedRanges();
-        if(currentLabel === undefined){
-            removeAnnotations(newRanges);
-        } else {
-            updateAnnotations(newRanges);
+        if(newRanges.length === 0) {
+            return;
+        }
+
+        console.log("Ranges: ", newRanges)
+
+        for(var i = 0; i < newRanges.length; i ++) {
+            if(currentLabel === undefined){
+                removeAnnotations(newRanges[i]);
+            } else {
+                updateAnnotations(newRanges[i]);
+            }
         }
 
         //postJson("/beta-span", toAnnotations(selections)); // ignore promise return
         renderAnnotations();
-    }
-
-    function addAnnotations(newRanges) {
-        var color = current_color;
-        if(color === undefined) {
-            throw Error("unable to paint annotations without a color.");
-        }
-
-        var start = 0;
-        var end = 0;
-        var range = null;
-        for(var i = 0; i < newRanges.length; i ++) {
-            range = newRanges[i];
-            start = range.start;
-            end = range.start + range.length;
-            text = instance_text.substring(start, end);
-
-            annotations.push({
-                "displayed_text": text,
-                "start": start, 
-                "end": end,
-                "color": color,
-            });
-        }
-    }
-
-    function surroundSelectionNew(selectionLabel, selectionColor)  {
-        //var span = document.createElement("span");
-        //span.style.fontWeight = "bold";
-        //span.style.color = "green";
-
-        if (window.getSelection) {
-            // Otherwise, we're going to be adding a new span annotation, if
-            // the user has selected some non-empty part of th text
-            if (sel.rangeCount && sel.toString().trim().length > 0) {                 
-
-                tsc = selectionColor.replace(")", ", 0.25)")
-                
-                var span = document.createElement("span");
-                span.className = "span_container";
-                span.setAttribute("selection_label", selectionLabel);
-                span.setAttribute("style", "background-color:rgb" + tsc + ";");
-                console.log(selectionColor);
-                
-                var label = document.createElement("div");
-                label.className = "span_label";
-                label.textContent = selectionLabel;
-                label.setAttribute("style", "background-color:white;"
-                                + "border:2px solid rgb" + selectionColor + ";");
-                
-                var range = sel.getRangeAt(0).cloneRange();
-                range.surroundContents(span);
-                sel.removeAllRanges();
-                sel.addRange(range);
-                span.appendChild(label);
-            }
-        }
     }
 
     function changeSelector(event) {
@@ -353,23 +378,39 @@
             throw Error("Invalid change event occurred!");
         }
 
+        var setTo = target.checked;
+
         var inputs = document.querySelectorAll(".new-span-input");
         for(var i = 0; i < inputs.length; i ++) {
             inputs[i].checked = false;
         }
 
-        target.checked = true;
-        currentColor = target.dataset.color;
-        currentLabel = target.dataset.labelContent;
-        console.log(currentColor, currentLabel)
+        target.checked = setTo;
+
+        if (setTo) {
+            currentColor = target.dataset.color;
+            currentLabel = target.dataset.labelContent;
+        } else {
+            currentColor = undefined;
+            currentLabel = undefined;
+        }
     }
 
     var inputs = document.querySelectorAll(".new-span-input");
     for(var i = 0; i < inputs.length; i ++) {
         inputs[i].addEventListener('change', changeSelector);
+
+        if(inputs[i].checked) {
+            currentColor = inputs[i].dataset.color;
+            currentLabel = inputs[i].dataset.labelContent;
+        }
     }
 
-    //document.addEventListener('mouseup', collectAndPostRanges);
+    document.addEventListener('mouseup', collectAndPostRanges);
+    document.debug = {};
+    document.debug.printAnnotations = function() {
+        console.log(annotations.values);
+    }
     instanceText = getInstanceText();
     annotationBox = getAnnotationBox();
     annotations = getSpanAnnotations();

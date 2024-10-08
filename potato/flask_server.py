@@ -2199,10 +2199,9 @@ def annotate_page(username=None, action=None):
         # Mark up the instance text where the annotated spans were
         text = render_span_annotations(text, span_annotations)
     
-    if span_annotations and has_beta_highlight(config["annotation_schemas"]):
+    if has_beta_highlight(config["annotation_schemes"]):
         new_var = render_new_span_annotations(span_annotations)
-        if new_var != None:
-            var_elems["span-annotations"] = new_var
+        var_elems["span-annotations"] = new_var or {}
 
     # If the admin has specified that certain keywords need to be highlighted,
     # post-process the selected instance so that it now also has colored span
