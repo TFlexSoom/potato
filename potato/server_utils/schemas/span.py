@@ -116,9 +116,12 @@ def render_span_annotations(text, span_annotations):
         # Spans are colored according to their order in the list and we need to
         # retrofit the color
         color = get_span_color(a["annotation"])
+
         # The color is an RGB triple like (1,2,3) and we want the background for
         # the text to be somewhat transparent so we switch to RGBA for bg
-        bg_color = color.replace(")", ",0.25)")
+        bg_color = "(0,0,0,0)"
+        if color != None:
+            bg_color = color.replace(")", ",0.25)")
 
         ann = ann_wrapper.format(
             annotation=a["annotation"], span=a["span"], color=color, bg_color=bg_color

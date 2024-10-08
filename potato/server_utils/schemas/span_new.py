@@ -34,7 +34,7 @@ def render_span_annotations(span_annotations):
     if len(span_annotations) == 0:
         return None
     
-    return json.dumps({
+    return {
         "annotations": [{
             "start": annotation["start"], 
             "end": annotation["end"],
@@ -42,7 +42,7 @@ def render_span_annotations(span_annotations):
             "label": annotation["annotation"],
             "color": _get_span_color(annotation["annotation"]),
         } for annotation in span_annotations]
-    })
+    }
 
 @dataclass
 class SpanScheme:
@@ -127,7 +127,7 @@ def generate_label_inputs(span_scheme):
                 f' class=" {class_name} new-span-input " ' +
                 ' for_span="true" ' +
                 ' type="checkbox" ' +
-                f' id="{span_scheme.name}" ' +
+                f' id="{name}" ' +
                 f' name="{name}" ' +
                 f' value="{key_value}" ' +
                 f' {check_html} ' +

@@ -1084,6 +1084,13 @@ def write_data(username):
     """
     raise RuntimeError("This function is deprecated?")
 
+def has_beta_highlight(schemas):
+    for schema in schemas:
+        if schema["annotation_type"] == "beta_highlight":
+            return True
+    
+    return False
+
 
 @app.route("/")
 def home():
@@ -2046,14 +2053,14 @@ def get_displayed_text(text):
             if config["list_as_text"].get("horizontal"):
                 for key in text:
                     block.append(
-                        '<div name="instance_text" style="float:left;width:%s;padding:5px;" class="column"> <legend> %s </legend> %s </div>'
+                        '<div id="instance-text" name="instance_text" style="float:left;width:%s;padding:5px;" class="column"> <legend> %s </legend> %s </div>'
                         % ("%d" % int(100 / len(text)) + "%", key, text[key])
                     )
                 text = '<div class="row" style="display: table"> %s </div>' % ("".join(block))
             else:
                 for key in text:
                     block.append(
-                        '<div name="instance_text"> <legend> %s </legend> %s <br/> </div>'
+                        '<div id="instance-text" name="instance_text"> <legend> %s </legend> %s <br/> </div>'
                         % (key, text[key])
                     )
                 text = "".join(block)
@@ -2188,9 +2195,11 @@ def annotate_page(username=None, action=None):
     # NOTE2: We have to this here to account for any keyword highlighting before
     # the instance text gets marked up in the post-processing below
     span_annotations = get_span_annotations_for_user_on(username, instance_id)
-    if span_annotations is not None and len(span_annotations) > 0:
+    if span_annotations:
         # Mark up the instance text where the annotated spans were
         text = render_span_annotations(text, span_annotations)
+    
+    if span_annotations and has_beta_highlight(config["annotation_schemas"]):
         new_var = render_new_span_annotations(span_annotations)
         if new_var != None:
             var_elems["span-annotations"] = new_var
@@ -2252,7 +2261,7 @@ def annotate_page(username=None, action=None):
         html_file = config["site_file"]
 
     var_elems_html = "".join(
-        map(lambda item : f'<var id="{item[0]}"> {item[1]} </var>', var_elems.items())
+        map(lambda item : f'<var id="{item[0]}"> {json.dumps(item[1])} </var>', var_elems.items())
     )
 
     # Flask will fill in the things we need into the HTML template we've created,
