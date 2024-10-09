@@ -14,6 +14,12 @@
     var currentColor = undefined;
     var annotations = null;
 
+    function typeAssertion(val, type) {
+        if(typeof(val) !== type) {
+            throw Error("Type Error! Expected " + type + " but got " + typeof(val));
+        }
+    }
+
     function getInstanceText() {
         try {
             var instanceVarElem = document.getElementById("instance");
@@ -38,14 +44,36 @@
         return undefined;
     }
 
+    function annotationValue(
+        low,
+        high,
+        span,
+        labels,
+        colors
+    ) {
+        typeAssertion(low, "number");
+        typeAssertion(high, "number");
+        typeAssertion(span, "string");
+        typeAssertion(labels, "object");
+        typeAssertion(colors, "object");
+
+        return {
+            low: low,
+            high: high,
+            span: span,
+            labels: labels,
+            colors: colors
+        }
+    }
+
     function insertOne(tree, interval, value) {
-        tree.insert(interval, {
-            low: value.start,
-            high: value.end,
-            span: value.span,
-            labels: [value.label],
-            colors: [value.color]
-        });
+        tree.insert(interval, annotationValue(
+            value.start,
+            value.end,
+            value.span,
+            [value.label],
+            [value.color]
+        ));
 
         return tree;
     }
@@ -55,10 +83,18 @@
             var value = values[i];
             var interval = [value.low, value.high]
             if(tree.intersect_any(interval)) {
+                console.log(interval);
+                console.log(tree.values);
                 throw Error("Collision Detection in Spans!");
             }
 
-            tree.insert(interval, value);
+            tree.insert(interval, annotationValue(
+                value.low,
+                value.high,
+                value.span,
+                [value.label],
+                [value.color]
+            ));
         }
 
         return tree;
@@ -87,8 +123,8 @@
         // create a unique set of inserts where no one collides
 
         var unmet = new document.potato.IntervalTree();
-        var perpLow = perpetrator["start"];
-        var perpHigh = perpetrator["end"];
+        var perpLow = perpetrator.low;
+        var perpHigh = perpetrator.high;
         unmet.insert([perpLow, perpHigh], [perpLow, perpHigh]);
         var result = [];
         for(var i = 0; i < victims.length; i ++) {
@@ -103,55 +139,57 @@
             unmet.remove([hitLow, hitHigh]);
 
             if(victim.low < hitLow) {
-                result.push({
-                    low: victim.low,
-                    high: hitLow,
-                    span: victim.span.substring(0, hitLow - victim.low),
-                    labels: victim.labels,
-                    colors: victim.colors,
-                });
+                result.push(annotationValue(
+                    victim.low,
+                    hitLow,
+                    victim.span.substring(0, hitLow - victim.low),
+                    victim.labels,
+                    victim.colors,
+                ));
 
-                result.push({
-                    low: hitLow,
-                    high: victim.high,
-                    span: victim.span.substring(hitLow - victim.low),
-                    labels: victim.labels + perpetrator.labels
-                });
+                result.push(annotationValue(
+                    hitLow,
+                    victim.high,
+                    victim.span.substring(hitLow - victim.low),
+                    victim.labels.concat(perpetrator.labels),
+                    victim.colors.concat(perpetrator.colors)
+                ));
 
                 unmet.insert([victim.high, hitHigh], [victim.high, hitHigh]);
             } else if (victim.high > hitHigh) {
-                result.push({
-                    low: hitHigh,
-                    high: victim.high,
-                    span: victim.span.substring(hitHigh - victim.low),
-                    labels: victim.labels,
-                    colors: victim.colors,
-                });
+                result.push(annotationValue(
+                    hitHigh,
+                    victim.high,
+                    victim.span.substring(hitHigh - victim.low),
+                    victim.labels,
+                    victim.colors,
+                ));
 
-                result.push({
-                    low: victim.low,
-                    high: hitHigh,
-                    span: victim.span.substring(0,  hitHigh - victim.low),
-                    labels: victim.labels + perpetrator.labels
-                });
+                result.push(annotationValue(
+                    victim.low,
+                    hitHigh,
+                    victim.span.substring(0,  hitHigh - victim.low),
+                    victim.labels.concat(perpetrator.labels),
+                    victim.colors.concat(perpetrator.colors)
+                ));
 
                 unmet.insert([hitLow, victim.low], [hitLow, victim.low]);
             } else if (victim.low === hitLow && victim.high === hitHigh){
-                result.push({
-                    low: hitLow,
-                    high: hitHigh,
-                    span: victim.span,
-                    labels: victim.labels + perpetrator.labels,
-                    colors: victim.colors + perpetrator.colors,
-                });
+                result.push(annotationValue(
+                    hitLow,
+                    hitHigh,
+                    victim.span,
+                    victim.labels.concat(perpetrator.labels),
+                    victim.colors.concat(perpetrator.colors),
+                ));
             } else {
-                result.push({
-                    low: victim.low,
-                    high: victim.high,
-                    span: victim.span,
-                    labels: victim.labels + perpetrator.labels,
-                    colors: victim.colors + perpetrator.colors,
-                });
+                result.push(annotationValue(
+                    victim.low,
+                    victim.high,
+                    victim.span,
+                    victim.labels.concat(perpetrator.labels),
+                    victim.colors.concat(perpetrator.colors),
+                ));
 
                 if(hitLow !== victim.low) {
                     unmet.insert([hitLow, victim.low], [hitLow, victim.low]);
@@ -166,13 +204,13 @@
         for(var i = 0; i < unmet.keys.length; i ++) {
             var hit = unmet.keys[i];
 
-            result.push({
-                low: hit[0],
-                high: hit[1],
-                span: perpetrator.span.substring(hit[0] - perpLow, hit[1] - perpLow),
-                labels: perpetrator.labels,
-                colors: perpetrator.colors
-            });
+            result.push(annotationValue(
+                hit[0],
+                hit[1],
+                perpetrator.span.substring(hit[0] - perpLow, hit[1] - perpLow),
+                perpetrator.labels,
+                perpetrator.colors
+            ));
         }
 
         return result;
@@ -192,7 +230,13 @@
 
             var others = getCollisions(tree, interval)
             tree = removeMany(tree, others);
-            group = makeUnique(value, others);
+            group = makeUnique(annotationValue(
+                item["start"],
+                item["end"],
+                item["span"],
+                [item["label"]],
+                [item["color"]]
+            ), others);
             tree = insertMany(tree, group);
         }
         return tree;
@@ -323,7 +367,7 @@
     }
 
     function removeAnnotations(range) {
-        annotations = removeCollisions(annotations, range);
+        annotations = removeCollisions(annotations, [range.start, range.end]);
     }
 
     function updateAnnotations(range) {
@@ -342,13 +386,16 @@
 
         
         annotations = removeMany(annotations, others);
-        var group = makeUnique({
-            low: range.start,
-            high: range.end,
-            span: instanceText.substring(range.start, range.end),
-            labels: [currentLabel],
-            colors: [currentColor]
-        }, others);
+        var group = makeUnique(annotationValue(
+            range.start,
+            range.end,
+            instanceText.substring(range.start, range.end),
+            [currentLabel],
+            [currentColor]
+        ), others);
+
+        console.log(group);
+
         annotations = insertMany(annotations, group);
     }
 
@@ -357,8 +404,6 @@
         if(newRanges.length === 0) {
             return;
         }
-
-        console.log("Ranges: ", newRanges)
 
         for(var i = 0; i < newRanges.length; i ++) {
             if(currentLabel === undefined){
