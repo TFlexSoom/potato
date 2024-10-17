@@ -1,4 +1,4 @@
-// vite.config.js
+// vite.config.ts
 import { resolve
 } from 'path'
 import { defineConfig
@@ -7,10 +7,11 @@ import { defineConfig
 export default defineConfig
 ({
  build: {
+   outDir: "live",
    lib: {
      // Could also be a dictionary or array of multiple entry points
      entry: resolve(__dirname, 'src/main.ts'),
-     name: 'MyLib',
+     name: 'PotatoLib',
      // the proper extensions will be added
      fileName: 'potato',
    },
@@ -21,10 +22,12 @@ export default defineConfig
      output: {
        // Provide global variables to use in the UMD build
        // for externalized deps
+       dir: "live",
        globals: {
          vue: 'Vue',
        },
      },
    },
+   
  },
 })

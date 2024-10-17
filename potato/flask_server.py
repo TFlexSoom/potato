@@ -1,6 +1,7 @@
 """
 Driver to run a flask server.
 """
+from dataclasses import dataclass
 import os
 import re
 import sys
@@ -41,6 +42,7 @@ from server_utils.schemas.span import render_span_annotations
 from server_utils.schemas.span_new import render_span_annotations as render_new_span_annotations
 from server_utils.cli_utlis import get_project_from_hub, show_project_hub
 from server_utils.prolific_apis import ProlificStudy
+from server_utils.json import easy_json
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -82,6 +84,26 @@ active_learning_state = None
 
 # Hacky nonsense
 schema_label_to_color = {}
+
+# Keyword Highlights File Data
+@dataclass(frozen=True)
+class HighlightSchema:
+    label: str
+    schema: str
+
+    def __hash__(self):
+        return hash((self.label, self.schema))
+
+emphasis_corpus_to_schemas = defaultdict(set)
+
+# Response Highlight Class
+@dataclass(frozen=True)
+class SuggestedResponse:
+    name: str
+    label: str
+
+    def __hash__(self):
+        return hash((self.name, self.label))
 
 COLOR_PALETTE = [
     "rgb(179,226,205)",
@@ -588,7 +610,7 @@ def load_all_data(config):
     global task_assignment
 
     # Hacky nonsense
-    global re_to_highlights
+    global emphasis_corpus_to_schemas
 
     # Where to look in the JSON item object for the text to annotate
     text_key = config["item_properties"]["text_key"]
@@ -683,7 +705,6 @@ def load_all_data(config):
         )
 
     # TODO: make this fully configurable somehow...
-    re_to_highlights = defaultdict(list)
     if "keyword_highlights_file" in config:
         kh_file = config["keyword_highlights_file"]
         logger.debug("Loading keyword highlighting from %s" % (kh_file))
@@ -692,12 +713,13 @@ def load_all_data(config):
             # TODO: make it flexible based on keyword
             df = pd.read_csv(kh_file, sep="\t")
             for i, row in df.iterrows():
-                regex = r"\b" + row["Word"].replace("*", "[a-z]*?") + r"\b"
-                re_to_highlights[regex].append((row["Schema"], row["Label"]))
+                emphasis_corpus_to_schemas[row["Word"]].add(
+                    HighlightSchema(row["Schema"], row["Label"])
+                )
 
         logger.debug(
             "Loaded %d regexes to map to %d labels for dynamic highlighting"
-            % (len(re_to_highlights), i)
+            % (len(emphasis_corpus_to_schemas), i)
         )
 
     # Load the annotation assignment info if automatic task assignment is on.
@@ -2174,7 +2196,8 @@ def annotate_page(username=None, action=None):
     instance_id = instance[id_key]
     text = instance["displayed_text"]
     var_elems = {
-        "instance": { "text": text }, 
+        "instance": { "text": text },
+        "emphasis": list(emphasis_corpus_to_schemas)
     }
 
     # also save the displayed text in the metadata dict
@@ -2209,9 +2232,10 @@ def annotate_page(username=None, action=None):
     #
     # NOTE: this code is probably going to break the span annotation's
     # understanding of the instance. Need to check this...
-    updated_text, schema_labels_to_highlight, schema_content_to_prefill = text, set(), []
+    schema_content_to_prefill = []
 
     #prepare label suggestions
+    label_suggestion_json = set()
     if 'label_suggestions' in instance:
         suggestions = instance['label_suggestions']
         for scheme in config['annotation_schemes']:
@@ -2226,18 +2250,23 @@ def annotate_page(username=None, action=None):
                 print("WARNING: Unsupported suggested label type %s, please check your input data" % type(s))
                 continue
 
-            if scheme.get('label_suggestions') == 'highlight':
-                for s in suggested_labels:
-                    schema_labels_to_highlight.add((scheme['name'], s))
-            elif scheme.get('label_suggestions') == 'prefill':
-                for s in suggested_labels:
-                    schema_content_to_prefill.append({'name':scheme['name'], 'label':s})
-            else:
+            if not scheme.get('label_suggestions') in ['highlight', 'prefill']:
                 print('WARNING: the style of suggested labels is not defined, please check your configuration file.')
+                continue
 
-    if "keyword_highlights_file" in config and len(schema_labels_to_highlight) == 0:
-        updated_text, schema_labels_to_highlight = post_process(config, text)
+            label_suggestion = scheme['label_suggestions']
+            for s in suggested_labels:
+                if label_suggestion == 'highlight':
+                        #bad suggestion -- TODO make chance configurable
+                        if random.randrange(0, 3) == 2:
+                            label_suggestion_json.add(SuggestedResponse(scheme['name'], random.choice(scheme['labels'])))
+                            continue
 
+                        label_suggestion_json.add(SuggestedResponse(scheme['name'], s))
+                elif label_suggestion == 'prefill':
+                        schema_content_to_prefill.append({'name':scheme['name'], 'label':s})
+
+    var_elems["suggestions"] = list(label_suggestion_json)
     # Fill in the kwargs that the user wanted us to include when rendering the page
     kwargs = {}
     for kw in config["item_properties"].get("kwargs", []):
@@ -2260,8 +2289,30 @@ def annotate_page(username=None, action=None):
         html_file = config["site_file"]
 
     var_elems_html = "".join(
-        map(lambda item : f'<var id="{item[0]}"> {json.dumps(item[1])} </var>', var_elems.items())
+        map(lambda item : (
+            f'<script id="{item[0]}" ' +
+            ' type="application/json"> ' +
+            f' {easy_json(item[1])} </script>'
+        ), var_elems.items())
     )
+
+    custom_js = ""
+    if config["customjs"] and config.get("customjs_hostname"):
+        custom_js = (
+            f'<script src="http://{config["customjs_hostname"]}/potato.js"' + 
+            ' defer></script>'
+        )
+    elif config["customjs"]:
+        custom_js = (
+            '<script src="http://localhost:4173/potato.js" ' +
+            ' defer></script>'
+        )
+    else:
+        custom_js = (
+            '<script src="https://cdn.jsdelivr.net/gh/' +
+            'davidjurgens/potato@HEAD/node/live/potato.js" ' +
+            ' crossorigin="anonymous"></script>'
+        )
 
     # Flask will fill in the things we need into the HTML template we've created,
     # replacing {{variable_name}} with the associated text for keyword arguments
@@ -2276,7 +2327,8 @@ def annotate_page(username=None, action=None):
         total_count=lookup_user_state(username).get_real_assigned_instance_count(),
         alert_time_each_instance=config["alert_time_each_instance"],
         statistics_nav=all_statistics,
-        var_elems= var_elems_html,
+        var_elems=var_elems_html,
+        custom_js=custom_js,
         **kwargs
     )
 
@@ -2286,27 +2338,9 @@ def annotate_page(username=None, action=None):
     #              flags=(re.DOTALL|re.MULTILINE))
     # text = m.group(1)
 
-    # For whatever reason, doing this before the render_template causes the
-    # embedded HTML to get escaped, so we just do a wholesale replacement here.
-    rendered_html = rendered_html.replace(text, updated_text)
-
     # Parse the page so we can programmatically reset the annotation state
     # to what it was before
     soup = BeautifulSoup(rendered_html, "html.parser")
-
-    # Highlight the schema's labels as necessary
-    for schema, label in schema_labels_to_highlight:
-
-        name = schema + ":::" + label
-        label_elem = soup.find("label", {"for": name})
-
-        # Update style to match the current color
-        c = get_color_for_schema_label(schema, label)
-
-        # Jiaxin: sometimes label_elem is None
-        if label_elem:
-            label_elem["style"] = "background-color: %s" % c
-
 
     # If the user has annotated this before, walk the DOM and fill out what they
     # did
@@ -2498,136 +2532,6 @@ def parse_html_span_annotation(html_span_annotation):
     no_html_s += s[start:]
 
     return no_html_s, annotations
-
-
-def post_process(config, text):
-    global schema_label_to_color
-
-    schema_labels_to_highlight = set()
-
-    all_words = list(set(re.findall(r"\b[a-z]{4,}\b", text)))
-    all_words = [w for w in all_words if not w.startswith("http")]
-    random.shuffle(all_words)
-
-    all_schemas = list([x[0] for x in re_to_highlights.values()])
-
-    # Grab the highlights
-    for regex, labels in re_to_highlights.items():
-
-        search_from = 0
-
-        regex = re.compile(regex, re.I)
-
-        while True:
-            try:
-                match = regex.search(text, search_from)
-            except BaseException as e:
-                print(repr(e))
-                break
-
-            if match is None:
-                break
-
-            start = match.start()
-            end = match.end()
-
-            # we're going to replace this instance with a color coded one
-            if len(labels) == 1:
-                schema, label = labels[0]
-
-                schema_labels_to_highlight.add((schema, label))
-
-                c = get_color_for_schema_label(schema, label)
-
-                pre = '<span style="background-color: %s">' % c
-
-                replacement = pre + match.group() + "</span>"
-
-                text = text[:start] + replacement + text[end:]
-
-                # Be sure to count all the junk we just added when searching again
-                search_from += end + (len(replacement) - len(match.group()))
-
-            # slightly harder, but just to get the MVP out
-            elif len(labels) == 2:
-
-                colors = []
-
-                for schema, label in labels:
-                    schema_labels_to_highlight.add((schema, label))
-                    c = get_color_for_schema_label(schema, label)
-                    colors.append(c)
-
-                matched_word = match.group()
-
-                first_half = matched_word[: int(len(matched_word) / 2)]
-                last_half = matched_word[int(len(matched_word) / 2) :]
-
-                pre = '<span style="background-color: %s;">'
-
-                replacement = (
-                    (pre % colors[0])
-                    + first_half
-                    + "</span>"
-                    + (pre % colors[1])
-                    + last_half
-                    + "</span>"
-                )
-
-                text = text[:start] + replacement + text[end:]
-
-                # Be sure to count all the junk we just added when searching again
-                search_from += end + (len(replacement) - len(matched_word))
-
-            # Gotta make this hard somehow...
-            else:
-                search_from = end
-
-    # Pick a few random words to highlight
-    #
-    # NOTE: we do this after the label assignment because if we somehow screw up
-    # and wrongly flag a valid word, this coloring is embedded within the outer
-    # (correct) <span> tag, so the word will get labeled correctly
-    num_false_labels = random.randint(0, 1)
-
-    for i in range(min(num_false_labels, len(all_words))):
-
-        # Pick a random word
-        to_highlight = all_words[i]
-
-        # Pick a random schema and label
-        schema, label = random.choice(all_schemas)
-        schema_labels_to_highlight.add((schema, label))
-
-        # Figure out where this word occurs
-        c = get_color_for_schema_label(schema, label)
-
-        search_from = 0
-        regex = r"\b" + to_highlight + r"\b"
-        regex = re.compile(regex, re.I)
-
-        while True:
-            try:
-                match = regex.search(text, search_from)
-            except BaseException as e:
-                print(repr(e))
-                break
-            if match is None:
-                break
-
-            start = match.start()
-            end = match.end()
-
-            pre = '<span style="background-color: %s">' % c
-
-            replacement = pre + match.group() + "</span>"
-            text = text[:start] + replacement + text[end:]
-
-            # Be sure to count all the junk we just added when searching again
-            search_from += end + (len(replacement) - len(match.group()))
-
-    return text, schema_labels_to_highlight
-
 
 def parse_story_pair_from_file(filepath):
     with open(filepath, "r") as f:
