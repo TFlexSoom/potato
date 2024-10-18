@@ -7,8 +7,6 @@
 
 <link rel="icon" type="image/png" href="https://colorlib.com/etc/lf/Login_v1/images/icons/favicon.ico">
 
-<link rel="stylesheet" type="text/css" href="home_files/bootstrap.css">
-
 <link rel="stylesheet" type="text/css" href="home_files/font-awesome.css">
 
 <link rel="stylesheet" type="text/css" href="home_files/animate.css">
@@ -71,22 +69,8 @@ Create your Account
 </div>
 </div>
 
-<script src="home_files/jquery-3.js"></script>
+{{ custom_js | safe }}
 
-<script src="home_files/popper.js"></script>
-<script src="home_files/bootstrap.js"></script>
-
-<script src="home_files/select2.js"></script>
-
-<script src="home_files/tilt.js"></script>
-<script>
-		$('.js-tilt').tilt({
-			scale: 1.1
-		})
-	</script>
-
-<script async="" src="home_files/js"></script>
-
-<script src="home_files/main.js"></script>
+<script src="home_files/main.js" defer></script>
 
 </body></html>

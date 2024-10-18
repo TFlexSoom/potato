@@ -1,8 +1,7 @@
 // vite.config.ts
-import { resolve
-} from 'path'
-import { defineConfig
-} from 'vite'
+import { resolve } from 'path'
+import { defineConfig } from 'vite'
+import nodePolyfills from '@emreerdogan/vite-plugin-node-stdlib-browser';
 
 export default defineConfig
 ({
@@ -16,18 +15,16 @@ export default defineConfig
      fileName: 'potato',
    },
    rollupOptions: {
-     // make sure to externalize deps that shouldn't be bundled
-     // into your library
-     external: ['vue'],
      output: {
        // Provide global variables to use in the UMD build
        // for externalized deps
        dir: "live",
-       globals: {
-         vue: 'Vue',
-       },
+       assetFileNames: "potato[extname]",
      },
    },
    
  },
+ plugins: [
+  nodePolyfills(),
+ ]
 })

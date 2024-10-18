@@ -17,7 +17,7 @@ function emphasize(emphasisList: Array<string>) {
         return;
     }
 
-    const instanceText = instanceTextElem.textContent;
+    const instanceText = instanceTextElem.innerText;
     if(!instanceText || instanceText === "") {
         console.log("text content in instance");
         return;
@@ -70,6 +70,7 @@ function emphasize(emphasisList: Array<string>) {
         last = current + " ";
     }
 
+    // TODO Figure out how to not override instance text with html.
     instanceTextElem.innerHTML = result;
 }
 

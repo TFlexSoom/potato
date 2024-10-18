@@ -1,4 +1,4 @@
 
-export function sendRangesToNetwork(ranges: any) {
+export function sendRangesToNetwork(_ranges: any) {
 
 }

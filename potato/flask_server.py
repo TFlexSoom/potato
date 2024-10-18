@@ -1113,6 +1113,34 @@ def has_beta_highlight(schemas):
     
     return False
 
+def get_custom_js():
+    custom_js = ""
+    if config["customjs"] and config.get("customjs_hostname"):
+        custom_js = (
+            f'<link src="http://{config["customjs_hostname"]}/potato.css"' + 
+            ' rel="stylesheet" defer/>'+
+            f'<script src="http://{config["customjs_hostname"]}/potato.mjs"' + 
+            ' type="module" defer></script>'
+        )
+    elif config["customjs"]:
+        custom_js = (
+            '<link href="http://localhost:4173/potato.css" ' +
+            ' rel="stylesheet"/>'+
+            '<script src="http://localhost:4173/potato.mjs" ' +
+            ' type="module" defer></script>'
+        )
+    else:
+        custom_js = (
+            '<link href="https://cdn.jsdelivr.net/gh/' +
+            'davidjurgens/potato@HEAD/node/live/potato.css" ' +
+            ' rel="stylesheet" crossorigin="anonymous"/>' +
+            '<script src="https://cdn.jsdelivr.net/gh/' +
+            'davidjurgens/potato@HEAD/node/live/potato.mjs" ' +
+            ' type="module" crossorigin="anonymous" defer></script>'
+        )
+    
+    return custom_js
+
 
 @app.route("/")
 def home():
@@ -1157,15 +1185,24 @@ def home():
 
                 return annotate_page(username, action="home")
             print("password logging in")
-            return render_template("home.html", title=config["annotation_task_name"])
+            return render_template(
+                "home.html", 
+                title=config["annotation_task_name"],
+                custom_js=get_custom_js(),
+            )
 
         except:
             return render_template(
                 "error.html",
                 error_message="Please login to annotate or you are using the wrong link",
+                custom_js=get_custom_js(),
             )
     print("password logging in")
-    return render_template("home.html", title=config["annotation_task_name"])
+    return render_template(
+        "home.html", 
+        title=config["annotation_task_name"],
+        custom_js=get_custom_js(),
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1200,9 +1237,14 @@ def login():
             title=config["annotation_task_name"],
             login_email=username,
             login_error="Invalid username or password",
+            custom_js=get_custom_js(),
         )
     print("unknown action at home page")
-    return render_template("home.html", title=config["annotation_task_name"])
+    return render_template(
+        "home.html", 
+        title=config["annotation_task_name"],
+        custom_js=get_custom_js(),
+    )
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -1230,12 +1272,14 @@ def signup():
                 title=config["annotation_task_name"],
                 login_email=username,
                 login_error="User registration success for " + username + ", please login now",
+                custom_js=get_custom_js(),
             )
         elif result == 'Unauthorized user':
             return render_template(
                 "home.html",
                 title=config["annotation_task_name"],
                 login_error=result + ", please contact your admin",
+                custom_js=get_custom_js(),
             )
 
         # TODO: return to the signup page and display error message
@@ -1243,6 +1287,7 @@ def signup():
             "home.html",
             title=config["annotation_task_name"],
             login_error=result + ", please try again or log in",
+            custom_js=get_custom_js(),
         )
 
     print("unknown action at home page")
@@ -1251,12 +1296,16 @@ def signup():
         title=config["annotation_task_name"],
         login_email=username,
         login_error="Invalid username or password",
+        custom_js=get_custom_js()
     )
 
 
 @app.route("/newuser")
 def new_user():
-    return render_template("newuser.html")
+    return render_template(
+        "newuser.html",
+        custom_js=get_custom_js()
+    )
 
 
 def get_users():
@@ -2110,6 +2159,7 @@ def annotate_page(username=None, action=None):
                 return render_template(
                     "error.html",
                     error_message="Please login to annotate or you are using the wrong link",
+                    custom_js=get_custom_js()
                 )
             username = username_from_last_page
 
@@ -2172,6 +2222,7 @@ def annotate_page(username=None, action=None):
             return render_template(
                 "error.html",
                 error_message="Sorry that you come a bit late. We have collected enough responses for our study. However, prolific sometimes will recruit more participants than we expected. We are sorry for the inconvenience!",
+                custom_js=get_custom_js(),
             )
 
     elif action == "prev_instance":
@@ -2296,24 +2347,6 @@ def annotate_page(username=None, action=None):
         ), var_elems.items())
     )
 
-    custom_js = ""
-    if config["customjs"] and config.get("customjs_hostname"):
-        custom_js = (
-            f'<script src="http://{config["customjs_hostname"]}/potato.js"' + 
-            ' defer></script>'
-        )
-    elif config["customjs"]:
-        custom_js = (
-            '<script src="http://localhost:4173/potato.js" ' +
-            ' defer></script>'
-        )
-    else:
-        custom_js = (
-            '<script src="https://cdn.jsdelivr.net/gh/' +
-            'davidjurgens/potato@HEAD/node/live/potato.js" ' +
-            ' crossorigin="anonymous"></script>'
-        )
-
     # Flask will fill in the things we need into the HTML template we've created,
     # replacing {{variable_name}} with the associated text for keyword arguments
     rendered_html = render_template(
@@ -2328,7 +2361,7 @@ def annotate_page(username=None, action=None):
         alert_time_each_instance=config["alert_time_each_instance"],
         statistics_nav=all_statistics,
         var_elems=var_elems_html,
-        custom_js=custom_js,
+        custom_js=get_custom_js(),
         **kwargs
     )
 

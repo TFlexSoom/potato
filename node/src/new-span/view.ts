@@ -1,7 +1,14 @@
+/*
+ * author: Tristan Hilbert
+ * date: 10/18/2024
+ * filename: view.js
+ * desc: In charge of constructing the html to render the proper view tags.
+ */
+
+import { AnnotationValue } from "./types";
 
 
-
-function hasSpanAnnotations() {
+export function hasSpanAnnotations() {
     try {
         var annotationsHtmlElem = document.getElementById("span-annotations");
         return !!annotationsHtmlElem;
@@ -14,7 +21,7 @@ function hasSpanAnnotations() {
 }
 
 
-function renderAnnotationStartTag(annotation) {
+function renderAnnotationStartTag(annotation: AnnotationValue) {
     var result = "<span class=\"";
     for(var k = 0; k < annotation.colors.length; k ++) {
         result += " new-span-color-" + annotation.colors[k] + " ";
@@ -38,17 +45,17 @@ function renderAnnotationEndTag() {
     return "</span>"
 }
 
-function renderAnnotations() {
-    var render = "";
-    var text = instanceText;
-    var i = 0; 
-    var j = 0;
-    while(i < text.length && j < annotations.values.length) {
-        var annotation = annotations.values[j];
+export function render(annotationBox: HTMLElement, text: string, annotationIter: Iterable<AnnotationValue>) {
+    let render = "";
+    let annotations = Array.from(annotationIter);
+    let i = 0; 
+    let j = 0;
+    while(i < text.length && j < annotations.length) {
+        var annotation = annotations[j];
 
-        if(annotation.low == i) {
+        if(annotation.start == i) {
             render += renderAnnotationStartTag(annotation);
-        } else if (annotation.high == i) {
+        } else if (annotation.end == i) {
             render += renderAnnotationEndTag();
             j += 1;
         }
@@ -60,9 +67,9 @@ function renderAnnotations() {
         render += text[i ++];
     }
 
+    console.log(render);
+
     annotationBox.innerHTML = render;
-}
 
-export function render(ranges: any) {
-
+    console.log(annotationBox.innerHTML);
 }

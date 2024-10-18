@@ -4,12 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Potato</title>
-<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
 
-<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
-        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+{custom_js | safe}
+
 </head>
 
 <style>
@@ -32,155 +29,8 @@
         <input type="hidden" name="firstname" id="firstname" value="{{firstname}}">
         <input type="hidden" name="lastname" id="lastname" value="{{lastname}}">
         <input type="hidden" name="instance_id" id="instance_id" value="{{instance_id}}">
-
-        <script>
-          document.addEventListener('keyup', function (event) {
-              //first check whether this keyboard input is a shortcut for checkboxes
-              var checkboxes = document.querySelectorAll('input[type=checkbox]')
-              var x = event.key.toLowerCase();
-
-              for (var i = 0; i < checkboxes.length; i++) {
-                  //alert(checkboxes[i].value)
-                  if(x === checkboxes[i].value){
-                      checkboxes[i].checked = !checkboxes[i].checked;
-                      if (checkboxes[i].onclick != null) checkboxes[i].onclick.apply(checkboxes[i]);
-                      return;
-                  };
-              }
-
-              // Each time we process a user's key presses, track who is doing
-              // it by grabbing the hidden firstname and lastname fields
-              new_stories(event, document.getElementById('firstname').value,
-                          document.getElementById('lastname').value)
-              
-          });
-        </script>
-
-
-        <script>
-			function onlyOne(checkbox) {
-			    // this function is used for the single-choice setting
-				//alert(checkbox.className)
-			    var x = document.getElementsByClassName(checkbox.className);
-			    var i;
-				for (i = 0; i < x.length; i++) {
-				  if(x[i].value != checkbox.value) x[i].checked = false;
-				}
-			}
-		</script>
-
-        <script>
-          function click_to_next() {
-              // Gacky code to simulate the submit button as a keyboard event
-              // and not have two separate paths to handle keyboard and mouse
-              // events
-              var e = $.Event('keyup');
-              e.key = "ArrowRight";
-              
-              new_stories(e, document.getElementById('firstname').value,
-                          document.getElementById('lastname').value)
-          } 
-        </script>
         
         {{annotation}}
-        
-        <script>
-            window.onunload = check_close;
-            function check_close() {
-                 console.error("session closed");
-                var post_req = {
-                    is_close: "closed"
-                }
-                post(post_req);
-            }
-        </script>
-
-        
-        <script>
-            // We submit a new post to the same (user/namepoint) endpoint
-            function post(params) {
-                // The rest of this code assumes you are not using a library.
-                // It can be made less wordy if you use one.
-                var form = document.createElement("form");
-                form.setAttribute("method", "post");
-                form.setAttribute("action", "namepoint");
-                
-                for (var key in params) {
-                    if (params.hasOwnProperty(key)) {
-                        var hiddenField = document.createElement("input");
-                        hiddenField.setAttribute("type", "hidden");
-                        hiddenField.setAttribute("name", key);
-                        hiddenField.setAttribute("value", params[key]);
-                        
-                        form.appendChild(hiddenField);
-                    }
-                }
-
-                // Stuff all the 
-                $('form input, form select').each(
-                    function(index){  
-                        var input = $(this);
-                        if (input.attr('type') != 'checkbox') {
-                            return
-                        }
-
-
-                        if (input.is(":checked")) {
-                            // Stuff all the input fields into something for the post
-                            var hiddenField = document.createElement("input");
-                            hiddenField.setAttribute("type", "hidden");
-                            hiddenField.setAttribute("name", input.attr('name'));
-                            hiddenField.setAttribute("value", input.is(":checked"));
-                            form.appendChild(hiddenField);
-                        }
-                    }
-                );
-                document.body.appendChild(form);
-                form.submit();
-            }
- 
-            function new_stories(event, firstname, lastname) {
-                var x = event.key;
-                // if (event.target.id == "go_to") return
-                var action = ""
-                var ism = ""
-
-                //console.log(x)
-                //console.log(firstname)
-                //console.log(lastname)
-                if (x == "ArrowLeft") { // Spacebar
-                    action = "prev_instance";
-                }
-                else if (x == "ArrowRight") {
-                    action = "next_instance";
-                }
-                else {
-                    console.log("Unknown key press", event)
-                    return
-                }
-
-                
-                var instance_id = document.getElementById('instance_id').value
-                var post_req = {
-                    firstname: firstname,
-                    lastname: lastname,
-                    label: ism,
-                    src: action,
-                    instance_id: instance_id
-                }
-
-                post(post_req)
-
-            }
-
-        </script>
-
-        <script>
-          $(document).ready(function(){
-              $('[data-toggle="tooltip"]').tooltip();
-          });
-        </script>
-        
          
   
 <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-3">

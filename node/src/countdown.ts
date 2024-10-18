@@ -1,9 +1,19 @@
 // Set the date we're counting down t
 const countDownDate = new Date().getTime();
 
+export function setIntervalForTimer() {
+    const timeCounterElem = document.getElementById("timecounter");
+    if(!timeCounterElem) {
+        console.warn("no time counter elem");
+        return undefined;
+    }
+
+    return setInterval(triggerTime, 1000)
+}
+
 // Update the count down every 1 second
 // export const x = setInterval(
-export function triggerTime() {
+function triggerTime() {
 
     // Get today's date and time
     const now = new Date().getTime();

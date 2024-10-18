@@ -9,18 +9,20 @@
 
 import { Interval } from "@flatten-js/interval-tree";
 import { getElementById, getJsonElement } from "../document";
-import { AnnotationValue, appendSelections, appendServerAnnotations, ColorLabel, getInstanceTextLength, getRanges, setCurrent, setInstanceText } from "./model";
+import { appendSelections, appendServerAnnotations, getInstanceText, getRanges, setCurrent, setInstanceText } from "./model";
 import { sendRangesToNetwork } from "./network";
 import { render } from "./view";
+import { AnnotationValue, ColorLabel } from "./types";
 
 let annotationBox: HTMLElement | undefined = undefined;
 
 export function onReady(document: Document) {
     let instanceText = (getJsonElement("instance") as {text:string})?.text || "";
     annotationBox = getElementById("instance-text") || undefined;
-    let serverAnnotations = getJsonElement("span-annotations") || undefined;
-    if(instanceText === "" || annotationBox === undefined || serverAnnotations === undefined) {
-        throw Error(`Controller could not initialize ${instanceText} ${annotationBox} ${serverAnnotations}`);
+    let serverAnnotations = (getJsonElement("span-annotations") as {annotations:AnnotationValue[]})?.annotations || [];
+    if(instanceText === "" || annotationBox === undefined) {
+        console.warn(`Controller could not initialize ${instanceText} ${annotationBox}`);
+        return;
     }
 
     setInstanceText(instanceText);
@@ -36,7 +38,7 @@ export function onReady(document: Document) {
 function textContentWithLinebreaks(range: Range) {
     var fragment = range.cloneContents();
     var result = "";
-    for(var i = 0; i < fragment.childNodes.length; i ++) {
+    for(var i = 0; i < fragment.children.length; i ++) {
         var elem = fragment.children[i];
         if(elem.tagName === 'BR' || elem.tagName === 'br') {
             result += '<br>'; // a carriage return might be more formal
@@ -72,7 +74,7 @@ function getSelections() {
         
         var rangeLength = textContentWithLinebreaks(range).length;
         var start = textContentWithLinebreaks(startOffsetRange).length - rangeLength;
-        var length = Math.min(rangeLength, getInstanceTextLength() - start);
+        var length = Math.min(rangeLength, getInstanceText().length - start);
 
         if(length === 0) {
             continue;
@@ -90,6 +92,8 @@ function addClickupEventToText(annotationBoxLocal: HTMLElement) {
     }
 
     annotationBoxLocal.addEventListener("click", () => {
+        console.log("CLICK!");
+
         var selections = getSelections();
         if(selections.length === 0) {
             return;
@@ -127,7 +131,10 @@ function addChangeEventToInputs(document: Document) {
 function consolidateAndRender() {
     const consolidatedRanges = getRanges();
     sendRangesToNetwork(consolidatedRanges);
-    render(consolidatedRanges);
+    render(annotationBox as HTMLElement, getInstanceText(), consolidatedRanges);
+    (annotationBox as HTMLElement).onchange = (_ev) => {
+        console.log(annotationBox?.innerHTML);
+    }
 }
 
 function getCurrentLabelAndColor(): ColorLabel | undefined {
