@@ -5,7 +5,8 @@
  * desc: Temporary web request function
  */
 
-function postJson(url, parcel) {
+// Might want to switch this to axios or something more standard
+export function postJson(url: URL, parcel: any) {
     return new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
