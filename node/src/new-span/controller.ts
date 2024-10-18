@@ -1,25 +1,39 @@
 /*
  * author: Tristan Hilbert
  * date: 10/4/2024
- * filename: new-span.js
- * desc: Client Side Functionality for new spans. By Grabbing the context for
+ * filename: controller.js
+ * desc: Client Side Controller Functionality for new spans. By Grabbing the context for
  *   the problem instance and rendering based on an in-memory model, the span
  *   annotation efficiently collects data.
  */
 
+import { Interval } from "@flatten-js/interval-tree";
 import { getElementById, getJsonElement } from "../document";
+import { AnnotationValue, appendSelections, appendServerAnnotations, ColorLabel, getInstanceTextLength, getRanges, setCurrent, setInstanceText } from "./model";
+import { sendRangesToNetwork } from "./network";
 import { render } from "./view";
 
-interface ColorLabel {
-    color: number
-    label: string
+let annotationBox: HTMLElement | undefined = undefined;
+
+export function onReady(document: Document) {
+    let instanceText = (getJsonElement("instance") as {text:string})?.text || "";
+    annotationBox = getElementById("instance-text") || undefined;
+    let serverAnnotations = getJsonElement("span-annotations") || undefined;
+    if(instanceText === "" || annotationBox === undefined || serverAnnotations === undefined) {
+        throw Error(`Controller could not initialize ${instanceText} ${annotationBox} ${serverAnnotations}`);
+    }
+
+    setInstanceText(instanceText);
+    setCurrent(getCurrentLabelAndColor());
+
+    addChangeEventToInputs(document);
+    addClickupEventToText(annotationBox);
+
+    appendServerAnnotations(serverAnnotations as AnnotationValue[]);
+    consolidateAndRender();
 }
 
-let instanceText = "";
-let annotationBox: HTMLElement | undefined = undefined;
-let current: ColorLabel | undefined = undefined;
-
-function fromRangeToAnnotation(range: Range) {
+function textContentWithLinebreaks(range: Range) {
     var fragment = range.cloneContents();
     var result = "";
     for(var i = 0; i < fragment.childNodes.length; i ++) {
@@ -37,7 +51,7 @@ function fromRangeToAnnotation(range: Range) {
 }
 
 
-function getSelectedRanges() {
+function getSelections() {
     var selection = window.getSelection();
     if(annotationBox === undefined || selection === null) {
         return [];
@@ -47,7 +61,7 @@ function getSelectedRanges() {
         return [];
     }
 
-    var ranges = [];
+    var intervals = [];
     for(var i = 0; i < selection.rangeCount; i ++) {
         var range = selection.getRangeAt(i);
         
@@ -56,21 +70,18 @@ function getSelectedRanges() {
         startOffsetRange.selectNodeContents(annotationBox);
         startOffsetRange.setEnd(range.endContainer, range.endOffset);
         
-        var rangeLength = fromRangeToAnnotation(range).length;
-        var start = fromRangeToAnnotation(startOffsetRange).length - rangeLength;
-        var length = Math.min(rangeLength, instanceText.length - start);
+        var rangeLength = textContentWithLinebreaks(range).length;
+        var start = textContentWithLinebreaks(startOffsetRange).length - rangeLength;
+        var length = Math.min(rangeLength, getInstanceTextLength() - start);
 
         if(length === 0) {
             continue;
         }
 
-        ranges.push({
-            start: start, 
-            end: start + length,
-        });
+        intervals.push(new Interval(start, start + length));
     }
 
-    return ranges;
+    return intervals;
 }
 
 function addClickupEventToText(annotationBoxLocal: HTMLElement) {
@@ -79,15 +90,12 @@ function addClickupEventToText(annotationBoxLocal: HTMLElement) {
     }
 
     annotationBoxLocal.addEventListener("click", () => {
-        var selections = getSelectedRanges();
+        var selections = getSelections();
         if(selections.length === 0) {
             return;
         }
 
-        for(const selection of selections) {
-            appendSelection(selection, current);
-        }
-
+        appendSelections(selections);
         consolidateAndRender();
     });
 }
@@ -98,14 +106,20 @@ function addChangeEventToInputs(document: Document) {
         input.addEventListener('change', (event) => {
             var target = event.target as HTMLInputElement;
             if(target === null || target.dataset.color === undefined) {
-                console.warn("Bad Input Change for new-span controller")
+                console.error("Bad Input Change for new-span controller")
                 return;
             }
 
-            var setTo = target.checked;
-            uncheckOtherSpansInputs();
-            target.checked = setTo;
-            current = getCurrentLabelAndColor();
+            let checkedInputs = document.querySelectorAll("input.new-span-input:checked") as NodeListOf<HTMLInputElement>;
+            for(const checked of checkedInputs) {
+                if(checked === target) {
+                    continue;
+                }
+
+                checked.checked = false;
+            }
+
+            setCurrent(deriveCurrentLabelAndColor(target));
         });
     }
 }
@@ -116,40 +130,22 @@ function consolidateAndRender() {
     render(consolidatedRanges);
 }
 
-function uncheckOtherSpansInputs() {
-    let inputElems = document.querySelectorAll("input.new-span-input:checked") as NodeListOf<HTMLInputElement>;
-    for(const inputElem of inputElems) {
-        inputElem.checked = false;
-    }
-}
-
 function getCurrentLabelAndColor(): ColorLabel | undefined {
-    let inputElems = document.querySelectorAll("input.new-span-input:checked");
+    let inputElems = document.querySelectorAll("input.new-span-input:checked") as NodeListOf<HTMLInputElement>;
     if(inputElems.length === 0) {
         return undefined;
     }
 
-    const input = inputElems[0] as HTMLInputElement;
+    return deriveCurrentLabelAndColor(inputElems[0]);
+}
+
+function deriveCurrentLabelAndColor(input: HTMLInputElement): ColorLabel | undefined {
+    if(!input.checked) {
+        return undefined;
+    }
 
     return {
         color: Number.parseInt(input.dataset.color || "0"),
         label: input.dataset.labelContent || "",
     }
-}
-
-export function onReady(document: Document) {
-    instanceText = getJsonElement("instance") || "";
-    annotationBox = getElementById("instance-text") || undefined;
-    let serverAnnotations = getJsonElement("span-annotations") || undefined;
-    if(instanceText === "" || annotationBox === undefined || serverAnnotations === undefined) {
-        throw Error(`Controller could not initialize ${instanceText} ${annotationBox} ${serverAnnotations}`);
-    }
-
-    addChangeEventToInputs(document);
-    addClickupEventToText(annotationBox);
-    
-    current = getCurrentLabelAndColor();
-
-    appendServerAnnotations(serverAnnotations);
-    consolidateAndRender();
 }

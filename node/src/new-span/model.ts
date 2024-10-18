@@ -1,43 +1,87 @@
+/*
+ * author: Tristan Hilbert
+ * date: 10/4/2024
+ * filename: controller.js
+ * desc: Client Side Model Functionality for new spans. By using Tries we efficiently 
+ *   store the ranges for the spans (inserted into the trie as inclusive "intervals")
+ */
 
 import IntervalTree, { Interval } from "@flatten-js/interval-tree";
 
-let tree = new IntervalTree();
+let instanceText = "";
+let current: ColorLabel | undefined = undefined;
+let tree = new IntervalTree<AnnotationValue>();
 
-interface AnnotationValue {
-    low: number
-    high: number
+
+export interface AnnotationValue {
+    start: number
+    end: number
     span: string
     labels: string[]
     colors: number[]
 }
 
-// function fromJson(json: Iterable<AnnotationRange>) {
-//     json.map(())
+export interface ColorLabel {
+    color: number
+    label: string
+}
 
-//     for(var i = 0; i < json.length; i ++) {
-//         var value = json[i];
-//         var interval = [item["start"], item["end"]];
-//         if(!tree.intersect_any(interval)) {
-//             tree = insertOne(tree, interval, value);
-//             continue;
-//         }
+export function setInstanceText(newInstanceText: string) {
+    instanceText = newInstanceText;
+}
 
-//         var others = getCollisions(tree, interval)
-//         tree = removeMany(tree, others);
-//         group = makeUnique(annotationValue(
-//             item["start"],
-//             item["end"],
-//             item["span"],
-//             [item["label"]],
-//             [item["color"]]
-//         ), others);
-//         tree = insertMany(tree, group);
-//     }
-//     return tree;
-// }
+export function getInstanceTextLength() {
+    return instanceText.length;
+}
+
+export function setCurrent(newColorLabel: ColorLabel | undefined) {
+    current = newColorLabel;
+}
+
+export function getRanges(): Iterable<AnnotationValue> {
+    return tree.values;
+}
+
+export function appendSelections(selections: Interval[]) {
+    if(current === undefined) {
+        for(const selection of selections) {
+            removeCollisions(tree, selection);
+        }
+        return;
+    }
+
+    const castedCurrent = current as ColorLabel;
+    const annotations = selections.map((selection: Interval) => {
+        return {
+            start: selection.low as number,
+            end: selection.high as number,
+            span: instanceText.substring(selection.low, selection.high + 1),
+            colors: [castedCurrent.color],
+            labels: [castedCurrent.label],
+        } as AnnotationValue;
+    });
+
+    appendServerAnnotations(annotations);
+}
+
+export function appendServerAnnotations(annotations: Iterable<AnnotationValue>) {
+    for(const annotation of annotations) {
+        const interval = new Interval(annotation.start, annotation.end);
+        if(!tree.intersect_any(interval)) {
+            tree = insertOne(tree, annotation);
+            continue;
+        }
+
+        const others = tree.search(interval).values()
+        tree = removeMany(tree, others);
+        const group = makeUnique(annotation, others);
+        tree = insertMany(tree, group);
+    }
+    return tree;
+}
 
 function insertOne(tree: IntervalTree, value: AnnotationValue) {
-    var interval = new Interval(value.low, value.high);
+    var interval = new Interval(value.start, value.end);
         
     if(tree.intersect_any(interval)) {
         console.log(`Intersection ${interval} within ${tree.values}`);
@@ -57,7 +101,7 @@ function insertMany(tree: IntervalTree, values: Iterable<AnnotationValue>) {
 
 function removeMany(tree: IntervalTree, values: Iterable<AnnotationValue>) {
     for(const value of values) {
-        tree.remove(new Interval(value.low, value.high), value);
+        tree.remove(new Interval(value.start, value.end), value);
     }
 
     return tree;
@@ -74,12 +118,12 @@ function makeUnique(perpetrator: AnnotationValue, victims: Iterable<AnnotationVa
     // create a unique set of inserts where no one collides
 
     var unmet = new IntervalTree();
-    const perpLow = perpetrator.low;
-    const perpHigh = perpetrator.high;
+    const perpLow = perpetrator.start;
+    const perpHigh = perpetrator.end;
     unmet.insert([perpLow, perpHigh], [perpLow, perpHigh]);
     var result = [] as AnnotationValue[];
     for(const victim of victims) {
-        var hits = unmet.search(new Interval(victim.low, victim.high)) // there will only ever be 1 hit
+        var hits = unmet.search(new Interval(victim.start, victim.end)) // there will only ever be 1 hit
         if (hits.length > 1) {
             throw Error("Tristan's Algorithm is wrong");
         }
@@ -88,11 +132,11 @@ function makeUnique(perpetrator: AnnotationValue, victims: Iterable<AnnotationVa
         var hitHigh = hits[0][1];
         unmet.remove([hitLow, hitHigh]);
 
-        if(victim.low < hitLow) {
+        if(victim.start < hitLow) {
             result.push({
-                low: victim.low,
-                high: hitLow,
-                span: victim.span.substring(0, hitLow - victim.low),
+                start: victim.start,
+                end: hitLow,
+                span: victim.span.substring(0, hitLow - victim.start),
                 labels: victim.labels,
                 colors: victim.colors,
         });
