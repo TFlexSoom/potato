@@ -1,3 +1,5 @@
-import { onReady } from "./controller";
+import "./new-span.css"
+
+import { onReady } from "./new-span";
 
 export default onReady;

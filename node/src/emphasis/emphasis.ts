@@ -7,22 +7,19 @@
  * 
  */
 
+import "./emphasis.css"
+
 import TrieSearch from "trie-search";
-import { getJsonElement } from "./document";
+import { getJsonElement } from "../document";
+import { addNewFormatting, Format, FormatType, getText, render } from "../instance";
 
-function emphasize(emphasisList: Array<string>) {
-    const instanceTextElem = document.getElementById("instance-text");
-    if(instanceTextElem === null) {
-        console.warn("cannot find instance text");
-        return;
-    }
+const FORMAT_TYPE: FormatType = "emphasis";
 
-    const instanceText = instanceTextElem.innerText;
-    if(!instanceText || instanceText === "") {
-        console.log("text content in instance");
-        return;
-    }
-    
+function emphasize(
+    instanceText: string, 
+    emphasisList: Array<string>,
+    formatCallback: (format: Format) => void
+) {
     const emphasisTrie = new TrieSearch<any>(undefined, {
         splitOnRegEx: false,
     });
@@ -30,34 +27,40 @@ function emphasize(emphasisList: Array<string>) {
     emphasisList.map((item) => emphasisTrie.map(item, item));
     const wordList = instanceText.split(" ");
     let lastWasValid = false;
+    let currentIndex = 0;
     let last = "";
-    let result = "";
     for(const word of wordList) {
         const current = last + word;
         const search = emphasisTrie.search(current);
 
         if(search.length === 0 && lastWasValid) {
-            result += `
-            <mark aria-hidden="true" class="emphasis">${last}</mark>
-            `;
-            
-            result += word + ' ';
+            formatCallback({
+                start: currentIndex,
+                end: last.length,
+                formatType: FORMAT_TYPE,
+                option: "",
+            })
+            currentIndex += last.length;
+            currentIndex += (word + ' ').length;
             last = "";
             lastWasValid = false;
             continue;
         }
 
         if(search.length === 0) {
-            // since this is html we don't have to worry about extra spaces
-            result += word + " ";
+            currentIndex += (word + " ").length;
             last = "";
             continue;
         }
 
         if(search.length === 1 && search[0] === current) {
-            result += `
-            <mark aria-hidden="true" class="emphasis">${current}</mark>
-            `;
+            formatCallback({
+                start: currentIndex,
+                end: current.length,
+                formatType: FORMAT_TYPE,
+                option: "",
+            })
+            currentIndex += (current).length
             last = "";
             lastWasValid = false;
             continue;
@@ -69,9 +72,6 @@ function emphasize(emphasisList: Array<string>) {
         
         last = current + " ";
     }
-
-    // TODO Figure out how to not override instance text with html.
-    instanceTextElem.innerHTML = result;
 }
 
 interface Suggestion {
@@ -106,7 +106,8 @@ function suggest(suggestions: Array<Suggestion>) {
 export function provideEmphasisAndSuggestion() {
     const emphasis = getJsonElement<Array<string>>("emphasis");
     if(emphasis !== undefined) {
-        emphasize(emphasis);
+        emphasize(getText(), emphasis, addNewFormatting);
+        render();
     }
 
     const suggestions = getJsonElement<Array<Suggestion>>("suggestions");

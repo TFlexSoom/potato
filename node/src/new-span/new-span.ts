@@ -11,8 +11,10 @@ import { Interval } from "@flatten-js/interval-tree";
 import { getElementById, getJsonElement } from "../document";
 import { appendSelections, appendServerAnnotations, getInstanceText, getRanges, setCurrent, setInstanceText } from "./model";
 import { sendRangesToNetwork } from "./network";
-import { render } from "./view";
 import { AnnotationValue, ColorLabel } from "./types";
+import { addNewFormatting, clearRangesOfType, FormatType, render } from "../instance";
+
+const FORMAT_TYPE: FormatType = "annotation";
 
 let annotationBox: HTMLElement | undefined = undefined;
 
@@ -131,10 +133,16 @@ function addChangeEventToInputs(document: Document) {
 function consolidateAndRender() {
     const consolidatedRanges = getRanges();
     sendRangesToNetwork(consolidatedRanges);
-    render(annotationBox as HTMLElement, getInstanceText(), consolidatedRanges);
-    (annotationBox as HTMLElement).onchange = (_ev) => {
-        console.log(annotationBox?.innerHTML);
+    clearRangesOfType(FORMAT_TYPE);
+    for(const range of consolidatedRanges) {
+        addNewFormatting({
+            start: range.start,
+            end: range.end,
+            formatType: FORMAT_TYPE,
+            option: range.colors.map((color) => `new-span-color-${color}`).join(" "),
+        })
     }
+    render()
 }
 
 function getCurrentLabelAndColor(): ColorLabel | undefined {
