@@ -111,6 +111,7 @@ export function render() {
     let render = "";
     const formats = renderingTree.values;
     const endQueue = [];
+    console.log(formats);
     for(let i = 0; i < instanceText.length; i ++) {
         while(formats.length > 0 && i === formats[0].start) {
             const format = formats.shift() as Format;
@@ -139,6 +140,7 @@ export function clearRangesOfType(formatType: FormatType) {
             continue;
         }
 
+        hasChanged = true;
         renderingTree.remove(new Interval(format.start, format.end), format);
     }
 }

@@ -7,6 +7,8 @@
  *   annotation efficiently collects data.
  */
 
+import "./new-span.css"
+
 import { Interval } from "@flatten-js/interval-tree";
 import { getElementById, getJsonElement } from "../document";
 import { appendSelections, appendServerAnnotations, getInstanceText, getRanges, setCurrent, setInstanceText } from "./model";
@@ -44,13 +46,9 @@ function textContentWithLinebreaks(range: Range) {
         const elem = fragment.childNodes[i];
         const tagName = (elem as HTMLElement)?.tagName || "" 
         if(tagName === 'BR' || tagName === 'br') {
-            result += '<br>'; // a carriage return might be more formal
+            result += '\n'; // a carriage return might be more formal
         } else if (elem.textContent !== '') {
             result += elem.textContent;
-        } else if (tagName === '' && elem.textContent === '') {
-            // This is an empty text node
-        } else {
-            console.warn("not sure how to annotate:", tagName, elem);
         }
     }
     
@@ -94,6 +92,7 @@ function getSelections() {
 function addClickupEventToText() {
     document.addEventListener("click", () => {
         var selections = getSelections();
+        window.getSelection()?.collapseToStart();
         if(selections.length === 0) {
             return;
         }

@@ -10,7 +10,7 @@ import { setIntervalForTimer } from "./countdown";
 import { provideEmphasisAndSuggestion } from "./emphasis/emphasis";
 import { login, signup } from "./login";
 import { openNav, closeNav, closeNav2, showInstructions } from "./navigation";
-import onReady from './new-span';
+import { onReady } from './new-span/new-span';
 import { keyupListener, click_to_next, click_to_prev, check_close } from './post';
 import { barValue } from './range';
 import { changeSpanLabel } from './span';

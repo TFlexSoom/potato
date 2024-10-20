@@ -34,15 +34,10 @@ export function makeUnique(perp: AnnotationValue, victims: Iterable<AnnotationVa
         const perpPiece = new Interval(perpStart, perpEnd)
         unmet.remove(perpPiece);
 
-        console.log("pre", perp, victim);
         const collision = calcCollision(perpPiece, victim);
-        console.log("collision", collision);
         result = pushDifferences(result, victim, collision);
-        console.log("diff", Array.from(result));
         result = pushUnion(result, perp, victim, collision);
-        console.log("union", Array.from(result));
         unmet = insertUnmets(unmet, perpPiece, collision);
-        console.log("unmet", unmet.values);
     }
 
     result = pushUnmets(result, perp, unmet);

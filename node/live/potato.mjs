@@ -8327,6 +8327,7 @@ function render() {
   hasChanged = !1;
   let o = "";
   const e = renderingTree.values, h = [];
+  console.log(e);
   for (let c = 0; c < instanceText$1.length; c++) {
     for (; e.length > 0 && c === e[0].start; ) {
       const y = e.shift();
@@ -8341,7 +8342,7 @@ function render() {
 }
 function clearRangesOfType(o) {
   for (const e of Array.from(renderingTree.values))
-    e.formatType === o && renderingTree.remove(new Interval(e.start, e.end), e);
+    e.formatType === o && (hasChanged = !0, renderingTree.remove(new Interval(e.start, e.end), e));
 }
 const tagFormatDictionary = {
   br: {
@@ -29686,9 +29687,9 @@ function makeUnique(o, e) {
     if (l.length > 1)
       throw Error("Tristan's Algorithm is wrong");
     const [M, x] = l[0], C = new Interval(M, x);
-    h.remove(C), console.log("pre", o, y);
+    h.remove(C);
     const D = calcCollision(C, y);
-    console.log("collision", D), c = pushDifferences(c, y, D), console.log("diff", Array.from(c)), c = pushUnion(c, o, y, D), console.log("union", Array.from(c)), h = insertUnmets(h, C, D), console.log("unmet", h.values);
+    c = pushDifferences(c, y, D), c = pushUnion(c, o, y, D), h = insertUnmets(h, C, D);
   }
   return c = pushUnmets(c, o, h), c;
 }
@@ -29814,7 +29815,8 @@ function onReady(o) {
 function textContentWithLinebreaks(o) {
   for (var e = o.cloneContents(), h = "", c = 0; c < e.childNodes.length; c++) {
     const y = e.childNodes[c], l = (y == null ? void 0 : y.tagName) || "";
-    l === "BR" || l === "br" ? h += "<br>" : y.textContent !== "" ? h += y.textContent : l === "" && y.textContent === "" || console.warn("not sure how to annotate:", l, y);
+    l === "BR" || l === "br" ? h += `
+` : y.textContent !== "" && (h += y.textContent);
   }
   return h;
 }
@@ -29834,8 +29836,9 @@ function getSelections() {
 }
 function addClickupEventToText() {
   document.addEventListener("click", () => {
+    var e;
     var o = getSelections();
-    o.length !== 0 && (appendSelections(o), consolidateAndRender());
+    (e = window.getSelection()) == null || e.collapseToStart(), o.length !== 0 && (appendSelections(o), consolidateAndRender());
   });
 }
 function addChangeEventToInputs(o) {
