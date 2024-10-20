@@ -31,7 +31,7 @@ export function onReady(document: Document) {
     setCurrent(getCurrentLabelAndColor());
 
     addChangeEventToInputs(document);
-    addClickupEventToText(annotationBox);
+    addClickupEventToText();
 
     appendServerAnnotations(serverAnnotations as AnnotationValue[]);
     consolidateAndRender();
@@ -40,14 +40,17 @@ export function onReady(document: Document) {
 function textContentWithLinebreaks(range: Range) {
     var fragment = range.cloneContents();
     var result = "";
-    for(var i = 0; i < fragment.children.length; i ++) {
-        var elem = fragment.children[i];
-        if(elem.tagName === 'BR' || elem.tagName === 'br') {
+    for(var i = 0; i < fragment.childNodes.length; i ++) {
+        const elem = fragment.childNodes[i];
+        const tagName = (elem as HTMLElement)?.tagName || "" 
+        if(tagName === 'BR' || tagName === 'br') {
             result += '<br>'; // a carriage return might be more formal
         } else if (elem.textContent !== '') {
             result += elem.textContent;
+        } else if (tagName === '' && elem.textContent === '') {
+            // This is an empty text node
         } else {
-            console.warn("not sure how to annotate:", elem.tagName, elem);
+            console.warn("not sure how to annotate:", tagName, elem);
         }
     }
     
@@ -88,14 +91,8 @@ function getSelections() {
     return intervals;
 }
 
-function addClickupEventToText(annotationBoxLocal: HTMLElement) {
-    if(annotationBox === undefined) {
-        return;
-    }
-
-    annotationBoxLocal.addEventListener("click", () => {
-        console.log("CLICK!");
-
+function addClickupEventToText() {
+    document.addEventListener("click", () => {
         var selections = getSelections();
         if(selections.length === 0) {
             return;
@@ -132,6 +129,7 @@ function addChangeEventToInputs(document: Document) {
 
 function consolidateAndRender() {
     const consolidatedRanges = getRanges();
+
     sendRangesToNetwork(consolidatedRanges);
     clearRangesOfType(FORMAT_TYPE);
     for(const range of consolidatedRanges) {

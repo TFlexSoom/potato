@@ -60,10 +60,13 @@ export function appendServerAnnotations(annotations: Iterable<AnnotationValue>) 
             continue;
         }
 
-        const others = tree.search(interval).values()
+        const others =  Array.from(tree.search(interval).values());
         tree = removeMany(tree, others);
+        console.log("After Removal", annotation, others);
         const group = makeUnique(annotation, others);
+        console.log("Group Made Unique", group);
         tree = insertMany(tree, group);
+        console.log("INSERTED", tree.values);
     }
     return tree;
 }
@@ -72,7 +75,7 @@ function insertOne(tree: IntervalTree, value: AnnotationValue) {
     var interval = new Interval(value.start, value.end);
         
     if(tree.intersect_any(interval)) {
-        console.log(`Intersection ${interval} within ${tree.values}`);
+        console.log("Intersection", interval, " within ", tree.values);
         throw Error("Collision Detection in Spans!");
     }
 

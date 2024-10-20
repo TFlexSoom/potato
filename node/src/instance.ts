@@ -78,7 +78,7 @@ export function addNewFormatting(format: Format) {
             continue;
         }
 
-        renderingTree.remove(new Interval(sibling.start, sibling.end));
+        renderingTree.remove(new Interval(sibling.start, sibling.end), sibling);
         format.start = Math.min(sibling.start, format.start);
         format.end = Math.max(sibling.end, format.end);
     }
@@ -108,8 +108,6 @@ export function render() {
         return;
     }
     hasChanged = false;
-
-    console.log(renderingTree.values);
     let render = "";
     const formats = renderingTree.values;
     const endQueue = [];
@@ -124,26 +122,24 @@ export function render() {
             render += instanceText[i];
         }
 
-        while(endQueue.length > 0 && i === endQueue[0].start) {
+        while(endQueue.length > 0 && i === endQueue[0].end) {
             const format = endQueue.shift() as Format;
             render += formatToClosedTag[format?.formatType];
         }
     }
 
     instanceTextElem.innerHTML = render;
-    console.log(instanceHtml);
-    console.log(render);
 }
 
 // Creating a diff and reconciling would be better than stripping and
 // re-rendering
 export function clearRangesOfType(formatType: FormatType) {
-    for(const format of renderingTree.values) {
+    for(const format of Array.from(renderingTree.values)) {
         if(format.formatType !== formatType) {
             continue;
         }
 
-        renderingTree.remove(new Interval(format.start, format.end));
+        renderingTree.remove(new Interval(format.start, format.end), format);
     }
 }
 

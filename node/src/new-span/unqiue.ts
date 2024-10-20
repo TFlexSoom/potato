@@ -21,8 +21,8 @@ export function makeUnique(perp: AnnotationValue, victims: Iterable<AnnotationVa
     // (result)        b-----b(bb)aa(ccc)a---a(d)d---d
     // where the (x) sections are `x U a`
 
-    let unmet = new IntervalTree<boolean>();
-    unmet.insert([perp.start, perp.end], true);
+    let unmet = new IntervalTree<Interval>();
+    unmet.insert(new Interval(perp.start, perp.end));
     let result = [] as AnnotationValue[];
     for(const victim of victims) {
         const hits = unmet.search(new Interval(victim.start, victim.end)) // there will only ever be 1 hit
@@ -34,12 +34,18 @@ export function makeUnique(perp: AnnotationValue, victims: Iterable<AnnotationVa
         const perpPiece = new Interval(perpStart, perpEnd)
         unmet.remove(perpPiece);
 
-
+        console.log("pre", perp, victim);
         const collision = calcCollision(perpPiece, victim);
+        console.log("collision", collision);
         result = pushDifferences(result, victim, collision);
+        console.log("diff", Array.from(result));
         result = pushUnion(result, perp, victim, collision);
-        unmet = insertUnmets(unmet, perp, collision);
+        console.log("union", Array.from(result));
+        unmet = insertUnmets(unmet, perpPiece, collision);
+        console.log("unmet", unmet.values);
     }
+
+    result = pushUnmets(result, perp, unmet);
 
     return result;
 }
@@ -99,17 +105,35 @@ function pushUnion(
 }
 
 function insertUnmets(
-    unmet: IntervalTree<boolean>,
-    perp: AnnotationValue,
+    unmet: IntervalTree<Interval>,
+    perp: Interval,
     collision: Interval
 ) {
-    if(perp.start < collision.low) {
-        unmet.insert(new Interval(perp.start, collision.low - 1))
+    if(perp.low < collision.low) {
+        unmet.insert(new Interval(perp.low, collision.low - 1))
     }
 
-    if(perp.end > collision.high) {
-        unmet.insert(new Interval(collision.high + 1, perp.end));
+    if(perp.high > collision.high) {
+        unmet.insert(new Interval(collision.high + 1, perp.high));
     }
     
     return unmet;
+}
+
+function pushUnmets(
+    result: AnnotationValue[],
+    perp: AnnotationValue,
+    unmet: IntervalTree<Interval>,
+) {
+    for(const interval of unmet.values) {
+        result.push({
+            start: interval.low,
+            end: interval.high,
+            span: perp.span.substring(interval.low - perp.start, interval.high - perp.start),
+            colors: perp.colors,
+            labels: perp.labels,
+        } as AnnotationValue)
+    }
+
+    return result;
 }
