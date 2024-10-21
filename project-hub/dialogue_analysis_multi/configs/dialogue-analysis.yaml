@@ -44,6 +44,7 @@
     "list_as_text": {
       "text_list_prefix_type": 'none', #whether automatically insert a prefix for each line, currently supporting 'number', 'alphabet', 'number'
       "horizontal": True,
+      "use_new_lines": True,
     },
 
     # How many seconds do you want the annotators spend on each instance, after

@@ -2103,7 +2103,11 @@ def get_displayed_text(text):
                 text = [prefix_list[i] + ". " + text[i] for i in range(len(text))]
             elif config["list_as_text"]["text_list_prefix_type"] == "number":
                 text = [str(i) + ". " + text[i] for i in range(len(text))]
-            text = "<br>".join(text)
+            
+            if config["list_as_text"].get("use_new_lines", False):
+                text="\n".join(text)
+            else:
+                text = "<br>".join(text)
 
         # unfolding dict into different sections
         elif isinstance(text, dict):
