@@ -9,7 +9,7 @@ desc: Defines Auth Service for Potato Application
 import logging
 
 from potato.flask_app.modules.auth.form import DEBUG_USER, PASSWORD_PLACEHOLDER, LoginForm, User, Uuid
-from potato.flask_app.modules.persistance.filesystem import fs_persistance_layer
+from potato.flask_app.modules.persistence.filesystem import fs_persistence_layer
 from potato.server_utils.config_utils import config
 from potato.server_utils.module_utils import Module, module_getter
 
@@ -35,6 +35,7 @@ class AuthConfiguration:
     use_database: bool = False
     allow_all_users: bool = False
 
+
 def start():
     global _allow_all_users
     if AuthConfiguration.allow_all_users:
@@ -48,7 +49,7 @@ def start():
         return
     
     _logger.info(f"Loading users from {user_config_path}")
-    users = fs_persistance_layer().query_object_rows(
+    users = fs_persistence_layer().query_object_rows(
         user_config_path,
         "", # For SQL stick to db
         lambda user_json_list: user_json_list,

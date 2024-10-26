@@ -1,8 +1,8 @@
 """
-filename: persistance_utils.py
+filename: persistence_utils.py
 date: 10/1/2024
 author: Tristan Hilbert (aka TFlexSoom)
-desc: Defines utilities for writing data to persistant
+desc: Defines utilities for writing data to persistent
   volumes and containers
 """
 

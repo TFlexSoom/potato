@@ -8,7 +8,7 @@ desc: Defines utilities for creating json files
 import json
 import logging
 
-from potato.server_utils.persistance_utils import ReadResult, WriteResult
+from potato.server_utils.persistence_utils import ReadResult, WriteResult
 
 _logger = logging.getLogger("JsonUtils")
 

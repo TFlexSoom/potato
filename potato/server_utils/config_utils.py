@@ -47,13 +47,10 @@ def config(cls, *args, **kwargs):
     
     return Config()
         
-def from_cli_args(args):
+def configure_from_cli_args(args):
     for key, value in vars(args):
         if key not in _global_config().values.keys():
             raise KeyError(f"args has {key} which is not supported by any service")
 
         _global_config().assertion[key](value)
         _global_config().values = value
-
-def get_value(key: str):
-    return _global_config().values[key]

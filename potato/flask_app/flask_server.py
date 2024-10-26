@@ -6,8 +6,8 @@ from functools import cache
 import logging
 from flask import Flask
 from potato.server_utils.arg_utils import arguments
-from potato.server_utils.config_utils import from_cli_args
-from potato.server_utils.module_utils import configure, start, cleanup
+from potato.server_utils.config_utils import configure_from_cli_args
+from potato.server_utils.module_utils import persistence, start, cleanup
 from potato.flask_app.modules.app import set_logging_verbosity, get_port, is_very_verbose
 
 @cache
@@ -28,9 +28,9 @@ def run_server(args):
     logger.setLevel(logging.INFO)
     logging.basicConfig()
 
-    from_cli_args(args)
-    configure()
+    configure_from_cli_args(args)
     set_logging_verbosity()
+    persistence()
     start()
 
 

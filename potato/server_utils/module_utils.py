@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Module:
-    persistance: Callable[[], None] = lambda: None
+    persistence: Callable[[], None] = lambda: None
     start: Callable[[], None] = lambda: None
     cleanup: Callable[[], None] = lambda: None
 
@@ -34,8 +34,8 @@ def _roll_through(binded_func: Callable[[Module], None], process: str):
       print(f"Exception raised during {process} within service {last_service_name}\n{e}")
       quit(1)
 
-def persistance():
-    _roll_through(lambda service: service.persistance(), "persistance")
+def persistence():
+    _roll_through(lambda service: service.persistence(), "persistence")
 
 def start():
     _roll_through(lambda service: service.start(), "start")
